@@ -1,0 +1,27 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "cppgdb",
+      "name": "find_devices",
+      "project": "CMakeLists.txt",
+      "projectTarget": "find_devices",
+      "comment": "Learn how to configure remote debugging. For more info, see http://aka.ms/vslinuxdebug",
+      "debuggerConfiguration": "gdb",
+      "MIMode": "gdb",
+      "args": [
+        "--list",
+        "--name",
+        "USB AUDIO",
+        "--desc",
+        "Texas Instruments",
+        "--type",
+        "'capture&playback'",
+        "--json",
+        "--no-verbose"
+      ],
+      "env": {}
+    }
+  ]
+}
