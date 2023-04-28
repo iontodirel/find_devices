@@ -50,7 +50,7 @@ card 1: CODEC [USB AUDIO  CODEC], device 0: USB Audio [USB Audio]\
 find_devices - Alsa Device finding utility
 
 Usage:\
-&nbsp;&nbsp;&nbsp;&nbsp;find_devices [--name <Name>][--desc <Description>][--type <TypeSpecifier>][--list][--verbose][--no-verbose][--help]\
+&nbsp;&nbsp;&nbsp;&nbsp;find_devices [--name <Name>][--desc <Description>][--type <TypeSpecifier>][--list][--verbose][--no-verbose][--help]
  
 Options:\
 &nbsp;&nbsp;&nbsp;&nbsp;--name <name>            partial or complete name of the audio device\
