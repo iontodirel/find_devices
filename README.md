@@ -8,7 +8,7 @@ Alsa device finding utility
 
 `arecord -l`\
 **** List of CAPTURE Hardware Devices ****\
-card 1: CODEC [USB AUDIO  CODEC], device 0: USB Audio [USB Audio]
+card 1: CODEC [USB AUDIO  CODEC], device 0: USB Audio [USB Audio]\
 &nbsp;&nbsp;Subdevices: 0/1\
 &nbsp;&nbsp;Subdevice #0: subdevice #0
 
