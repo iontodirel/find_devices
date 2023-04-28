@@ -10,6 +10,7 @@
       "comment": "Learn how to configure remote debugging. For more info, see http://aka.ms/vslinuxdebug",
       "debuggerConfiguration": "gdb",
       "MIMode": "gdb",
+      // remove or add arguments to the executable when debugging
       "args": [
         "--list",
         "--name",
