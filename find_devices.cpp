@@ -280,7 +280,7 @@ std::vector<audio_device> get_audio_devices(const audio_device_match& m)
     return matched_devices;
 }
 
-bool device_in_use(const audio_device& device)
+bool can_use_device(const audio_device& device)
 {
-    //snd_pcm_open(NULL)
+    return true;
 }
