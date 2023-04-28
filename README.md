@@ -43,6 +43,10 @@ card 1: CODEC [USB AUDIO  CODEC], device 0: USB Audio [USB Audio]\
 &nbsp;&nbsp;&nbsp;&nbsp;] \
 }
 
+### find_devices example with jq
+
+`./find_devices --name "USB Audio" --desc "Texas Instruments" --type 'capture&playback' --json --no-verbose | jq -r ".devices[0].plughw_id" ` \
+plughw:1,0
 
 ## Help
 
@@ -51,7 +55,7 @@ find_devices - Alsa Device finding utility
 
 Usage:\
 &nbsp;&nbsp;&nbsp;&nbsp;find_devices [--name <Name>][--desc <Description>][--type <TypeSpecifier>][--list][--verbose][--no-verbose][--help]
- 
+
 Options:\
 &nbsp;&nbsp;&nbsp;&nbsp;--name <name>            partial or complete name of the audio device\
 &nbsp;&nbsp;&nbsp;&nbsp;--desc <description>     partial or complete description of the audio device\
