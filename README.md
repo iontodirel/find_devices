@@ -35,6 +35,15 @@ card 1: CODEC [USB AUDIO  CODEC], device 0: USB Audio [USB Audio]\
 &nbsp;&nbsp;&nbsp;&nbsp;] \
 }
 
+### find_devices example of no devices found
+
+`./find_devices --name "none" --type 'capture&playback' --json --no-verbose`\
+{\
+&nbsp;&nbsp;&nbsp;&nbsp;"devices": [ \
+&nbsp;&nbsp;&nbsp;&nbsp;] \
+}
+
+
 ## Help
 
 `./find_devices --help`\
