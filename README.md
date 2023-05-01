@@ -1,6 +1,6 @@
  # find_devices
 
-Alsa device and serial ports finding utility.
+Alsa audio device and serial ports finding utility.
 
 Use this utility to list and filter audio devices and serial ports.
 
