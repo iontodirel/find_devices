@@ -1,6 +1,8 @@
  # find_devices
 
-Alsa device finding utility
+Alsa device and serial ports finding utility.
+
+Use this utility to list and filter audio devices and serial ports.
 
 ## Example usage and comparison to Alsa
 
@@ -47,6 +49,10 @@ card 1: CODEC [USB AUDIO  CODEC], device 0: USB Audio [USB Audio]\
 
 `./find_devices --name "USB Audio" --desc "Texas Instruments" --type 'capture&playback' --json --no-verbose | jq -r ".devices[0].plughw_id" ` \
 plughw:1,0
+
+## Building
+
+Install
 
 ## Help
 
