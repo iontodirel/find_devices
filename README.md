@@ -76,7 +76,15 @@ This project is using `CMake`, and has been tested with the GCC compiler.
 
 ## Development
 
-You can using `Visual Studio` or `VSCode` for remote Linux development. My setup include a Linux machine running Ubuntu 22.03 Desktop, and I SSH into it.
+You can use `Visual Studio` or `VSCode` for remote Linux development.
+
+My setup include a Linux machine running Ubuntu 22.03 Desktop, and I only SSH into it. I do the development in Windows in VSCode or Visual Studio.
+
+### VSCode
+
+I have CMake Tools, Cpp Tools, and Remote - SSH tools installed. They provide the developer experience for editing, building and debugging.
+
+I run VSCode on Windows.
 
 ## Limitations
 
