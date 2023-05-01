@@ -70,7 +70,7 @@ make
 
 ### Dependencies
 
-This project uses `libudev, `libsound2` as libarary dependencies.
+This project uses `libudev` and `libsound2` as development library dependencies.
 
 This project is using `CMake`, and has been tested with the GCC compiler.
 
