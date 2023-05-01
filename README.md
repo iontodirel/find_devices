@@ -56,7 +56,15 @@ Install the dependecies listed in `install_dependencies.sh`.
 
 Clone the repo with `git clone https://github.com/iontodirel/find_devices.git`.
 
-Build the 
+Generate your build scripts with CMake and build:
+
+~~~~
+cd find_devices/
+mkdir out
+cd out
+cmake ..
+make
+~~~~
 
 ## Help
 
