@@ -52,7 +52,11 @@ plughw:1,0
 
 ## Building
 
-Install
+Install the dependecies listed in `install_dependencies.sh`.
+
+Clone the repo with `git clone https://github.com/iontodirel/find_devices.git`.
+
+Build the 
 
 ## Help
 
