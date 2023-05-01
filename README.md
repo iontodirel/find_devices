@@ -4,9 +4,11 @@ Alsa audio device and serial ports finding utility.
 
 Use this utility to list and filter audio devices and serial ports.
 
-## Example usage and comparison to Alsa
+## Example usage
 
-### Alsa examples
+### Comparison with Alsa
+
+To retrieve Alsa capture and playback devices:
 
 `arecord -l`\
 **** List of CAPTURE Hardware Devices ****\
@@ -65,6 +67,27 @@ cd out
 cmake ..
 make
 ~~~~
+
+### Dependencies
+
+This project uses `libudev, `libsound2` as libarary dependencies.
+
+This project is using `CMake`, and has been tested with the GCC compiler.
+
+## Development
+
+You can using `Visual Studio` or `VSCode` for remote Linux development. My setup include a Linux machine running Ubuntu 22.03 Desktop, and I SSH into it.
+
+## Limitations
+
+- Only Linux is supported.
+- Only USB serial ports are currently supported.
+- Limited support for built in sound cards, like PCI based ones.
+- Currently assumes you use a Linux kernel with udev support.
+
+## Motivation
+
+- Easy and fast enumeration of ALSA devices and serial ports
 
 ## Help
 
