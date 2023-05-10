@@ -60,7 +60,7 @@
         {
             "name": "linux-debug",
             "displayName": "Linux Debug",
-            "generator": "Unix Makefiles",
+            "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
             "cacheVariables": {

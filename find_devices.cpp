@@ -23,34 +23,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "find_devices.h"
+#include "find_devices.hpp"
 
 #include <locale>
 
 #include <alsa/asoundlib.h>
+#include <libudev.h>
+//#include <libusb.h>
+//#include <libusb-1.0/libusb.h>
 
-namespace
-{
-    std::string to_lower(const std::string& str)
-    {
-        std::locale loc;
-        std::string s;
-        s.resize(str.size());
-        for (size_t i = 0; i < str.size(); i++)
-            s[i] = std::tolower(str[i], loc);
-        return s;
-    }
-}
+#include <functional>
 
-std::string audio_device::hw_id() const
-{
-    return std::string("hw:") + std::to_string(card_id) + "," + std::to_string(device_id);
-}
+#include <fmt/format.h>
 
-std::string audio_device::plughw_id() const
-{
-    return std::string("plughw:") + std::to_string(card_id) + "," + std::to_string(device_id);
-}
+// #include <iostream>
+// #include <iomanip>
+// #include <sstream>
+
+
+
+//#include <stdio.h>
+//#include <stdlib.h>
+//#include <string.h>
+//#include <libudev.h>
+//#include <fcntl.h>
+//#include <unistd.h>
+//#include <errno.h>
+//#include <sys/ioctl.h>
+//#include <linux/usbdevice_fs.h>
+//#include <linux/usbdevice_fs.h>
+//#include <linux/usb/ch9.h>
+
+// **************************************************************** //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+// AUDIO DEVICE                                                     //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+// **************************************************************** //
+
+void insert_tabs(std::string& s, int tabs);
 
 audio_device_type operator|(const audio_device_type& l, const audio_device_type& r)
 {
@@ -76,36 +94,57 @@ std::string to_string(const audio_device_type& deviceType)
     else if (deviceType == audio_device_type::uknown)
         return std::string("unknown");
     else if ((deviceType & audio_device_type::capture) != (audio_device_type)0 && (deviceType & audio_device_type::playback) != (audio_device_type)0)
-        return std::string("capture|playback");
+        return std::string("capture&playback");
     return std::string("");
 }
 
-std::string audio_device::to_string() const
+std::string to_string(const audio_device_info& d)
 {
-    return std::string("card id: '") + std::to_string(card_id) + "', " +
-        "device id: '" + std::to_string(device_id) +
-        "', name: '" + name +
-        "', desc: '" + description +
-        "', type: '" + ::to_string(type) + "'";
+    return std::string("card id: '") + std::to_string(d.card_id) + "', " +
+        "device id: '" + std::to_string(d.device_id) +
+        "', name: '" + d.name +
+        "', desc: '" + d.description +
+        "', type: '" + to_string(d.type) + "'";
 }
 
-std::string to_json_string(const std::vector<audio_device>& devices)
+void insert_tabs(std::string& s, int tabs)
+{
+    std::string padded;
+    for (int i = 0; i < tabs; i++)
+    {
+        padded += "    ";
+    }
+    std::string result = padded;
+    for (char c : s)
+    {
+        if (c == '\n')
+        {
+            result += "\n" + padded;
+        }
+        else
+        {
+            result += c;
+        }
+    }
+    s = result;
+    /*
+    std::istringstream iss(str);
+    std::string line;
+    while (std::getline(iss, line)) {
+        std::cout << line << std::endl;
+    }
+    */
+}
+
+std::string to_json(const std::vector<audio_device_info>& devices)
 {
     std::string s;
     s.append("{\n");
     s.append("    \"devices\": [\n");
     for (int i = 0; i < devices.size(); i++)
     {
-        const audio_device& d = devices[i];
-        s.append("        {\n");
-        s.append("            \"card_id\": " + std::to_string(d.card_id) + ",\n");
-        s.append("            \"device_id\": " + std::to_string(d.device_id) + ",\n");
-        s.append("            \"plughw_id\": \"" + d.plughw_id() + "\",\n");
-        s.append("            \"hw_id\": \"" + d.hw_id() + "\",\n");
-        s.append("            \"name\": \"" + d.name + "\",\n");
-        s.append("            \"description\": \"" + d.description + "\",\n");
-        s.append("            \"type\": \"" + to_string(d.type) + "\"\n");
-        s.append("        }");
+        const audio_device_info& d = devices[i];
+        s.append(to_json(d, 2));
         if ((i + 1) < devices.size())
         {
             s.append(",");
@@ -117,170 +156,732 @@ std::string to_json_string(const std::vector<audio_device>& devices)
     return s;
 }
 
-std::string to_json_string(const audio_device& d)
+std::string to_json(const audio_device_info& d, bool wrapping_object, int tabs)
 {
     std::string s;
-    s.append("{\n");
-    s.append("    \"card_id\": " + std::to_string(d.card_id) + ",\n");
-    s.append("    \"device_id\": " + std::to_string(d.device_id) + ",\n");
-    s.append("    \"plughw_id\": \"" + d.plughw_id() + "\",\n");
-    s.append("    \"hw_id\": \"" + d.hw_id() + "\",\n");
+    if (wrapping_object)
+    {
+        s.append("{\n");
+    }
+    s.append("    \"card_id\": \"" + std::to_string(d.card_id) + "\",\n");
+    s.append("    \"device_id\": \"" + std::to_string(d.device_id) + "\",\n");
+    s.append("    \"plughw_id\": \"" + d.plughw_id + "\",\n");
+    s.append("    \"hw_id\": \"" + d.hw_id + "\",\n");
     s.append("    \"name\": \"" + d.name + "\",\n");
     s.append("    \"description\": \"" + d.description + "\",\n");
-    s.append("    \"type\": \"" + to_string(d.type) + "\"\n");
-    s.append("}\n");
+    s.append("    \"type\": \"" + to_string(d.type) + "\"");
+    if (wrapping_object)
+    {
+        s.append("\n");
+        s.append("}");
+    }
+    insert_tabs(s, tabs);
     return s;
 }
 
-std::vector<audio_device> get_audio_devices(const audio_device_type& type)
+struct audio_device_private_imp
 {
-    snd_ctl_t* handle;
-    snd_ctl_card_info_t* info;
-    snd_pcm_info_t* pcminfo;
-    snd_ctl_card_info_alloca(&info);
-    snd_pcm_info_alloca(&pcminfo);
-    int card = -1;
-    int status = -1;
-    snd_pcm_stream_t stream = type == audio_device_type::capture ? SND_PCM_STREAM_CAPTURE : SND_PCM_STREAM_PLAYBACK;
-    std::vector<struct audio_device> devices;
+    snd_ctl_t* ctl_handle;
+    snd_pcm_info_t* pcm_info;
+};
 
+std::vector<audio_device_info> get_audio_devices();
+std::vector<audio_device_info> get_audio_devices(int card_id);
+bool try_get_audio_device(int card_id, snd_ctl_t*& ctl_handle);
+bool try_get_audio_device(int card_id, int device_id, snd_ctl_t*& ctl_handle, snd_pcm_info_t*& pcm_info);
+bool try_get_audio_device(int card_id, int device_id, snd_ctl_t* ctl_handle, audio_device_info& device);
+bool can_use_audio_device(const audio_device_info& device, snd_pcm_stream_t mode);
+
+std::vector<audio_device_info> get_audio_devices()
+{
+    std::vector<audio_device_info> devices;
+
+    int card_id = -1;
+    int err = -1;
+
+    // ALSA sample code: https://github.com/bear24rw/alsa-utils/blob/master/aplay/aplay.c
+
+    // Consider using snd_device_name_hint and snd_device_name_get_hint
+    // for more portability, simplicity and support of non PCM devices
+    // Can use snd_ctl_rawmidi_next_device for MIDI devices.
+
+    // Iterate over all available sound cards
     while (true)
     {
-        status = snd_card_next(&card);
-        if (card < 0)
+        err = snd_card_next(&card_id);
+        if (err != 0 || card_id < 0)
+            break;
+        std::vector<audio_device_info> devices_for_card = get_audio_devices(card_id);
+        devices.insert(devices.end(), devices_for_card.begin(), devices_for_card.end());        
+    }
+
+    return devices;
+}
+
+std::vector<audio_device_info> get_audio_devices(int card_id)
+{
+    std::vector<audio_device_info> devices;
+
+    snd_ctl_t* ctl_handle = nullptr;
+    int err = -1;
+
+    // ALSA sample code: https://github.com/bear24rw/alsa-utils/blob/master/aplay/aplay.c
+
+    // Consider using snd_device_name_hint and snd_device_name_get_hint
+    // for more portability, simplicity and support of non PCM devices
+    // Can use snd_ctl_rawmidi_next_device for MIDI devices.
+
+    err = snd_ctl_open(&ctl_handle, fmt::format("hw:{}", card_id).c_str(), 0);
+    if (err != 0)
+        return devices;;
+
+    // Iterate over all available PCM devices on the current card
+    int device_id = -1;
+    while (true)
+    {
+        err = snd_ctl_pcm_next_device(ctl_handle, &device_id);
+        if (err != 0)
+            continue;
+        if (device_id < 0)
             break;
 
-        char name[32];
-        sprintf(name, "hw:%d", card);
+        audio_device_info device;
 
-        status = snd_ctl_open(&handle, name, 0);
+        if (!try_get_audio_device(card_id, device_id, ctl_handle, device))
+            continue;
 
-        //status = snd_ctl_card_info(handle, info);
-
-        int device = -1;
-
-        while (true)
-        {
-            status = snd_ctl_pcm_next_device(handle, &device);
-            if (status < 0 || device < 0)
-                break;
-
-            snd_pcm_info_set_device(pcminfo, device);
-            snd_pcm_info_set_subdevice(pcminfo, 0);
-            snd_pcm_info_set_stream(pcminfo, stream);
-
-            status = snd_ctl_pcm_info(handle, pcminfo);
-            if (status < 0)
-                continue;
-
-            struct audio_device d;
-            d.type = type;
-            d.card_id = card;
-            d.device_id = device;
-
-            char* name = nullptr;
-            status = snd_card_get_name(card, &name);
-            d.name = name;
-
-            char* longname = nullptr;
-            status = snd_card_get_longname(card, &longname);
-            d.description = longname;
-
-            devices.emplace_back(std::move(d));
-        }
-
-        snd_ctl_close(handle);
+        devices.push_back(device);
     }
+
+    snd_ctl_close(ctl_handle);    
 
     return devices;
 }
 
-std::vector<audio_device> get_audio_devices()
+bool try_get_audio_device(int card_id, snd_ctl_t*& ctl_handle)
 {
-    std::vector<audio_device> devices = get_audio_devices(audio_device_type::capture);
-    std::vector<audio_device> playbackDevices = get_audio_devices(audio_device_type::playback);
-    size_t deviceCount = devices.size();
-    for (size_t i = 0; i < deviceCount; i++)
+    int err = snd_ctl_open(&ctl_handle, fmt::format("hw:{}", card_id).c_str(), 0);
+    if (err != 0)
     {
-        for (size_t j = 0; j < playbackDevices.size(); j++)
-        {
-            if (devices[i].card_id == playbackDevices[j].card_id &&
-                devices[i].device_id == playbackDevices[j].device_id)
-            {
-                devices[i].type = devices[i].type | playbackDevices[j].type;
-            }
-            else
-            {
-                devices.push_back(playbackDevices[j]);
-            }
-        }
+        return false;
     }
-    return devices;
+    return true;
 }
 
-bool match_device(const audio_device& d, const audio_device_match& m)
+bool try_get_audio_device(int card_id, int device_id, snd_ctl_t* ctl_handle, audio_device_info& device)
 {
-    std::string dNameLower = to_lower(d.name);
-    std::string nameLower = to_lower(m.device_name_filter);
-    std::string dDescLower = to_lower(d.description);
-    std::string descLower = to_lower(m.device_desc_filter);
+    snd_pcm_info_t* pcm_info = nullptr;
+    int err = -1;
 
-    if (nameLower.size() > 0 && descLower.size() > 0)
+    snd_pcm_info_alloca(&pcm_info);
+
+    // NOTE: find a better way to identify playback or capture in one go
+
+    snd_pcm_info_set_device(pcm_info, device_id);
+    snd_pcm_info_set_subdevice(pcm_info, 0);
+    snd_pcm_info_set_stream(pcm_info, SND_PCM_STREAM_CAPTURE);
+
+    err = snd_ctl_pcm_info(ctl_handle, pcm_info);
+    
+    if (err < 0)
     {
-        if (dNameLower.find(nameLower) == std::string::npos || dDescLower.find(descLower) == std::string::npos)
+        snd_pcm_info_set_device(pcm_info, device_id);
+        snd_pcm_info_set_subdevice(pcm_info, 0);
+        snd_pcm_info_set_stream(pcm_info, SND_PCM_STREAM_PLAYBACK);
+
+        err = snd_ctl_pcm_info(ctl_handle, pcm_info);
+        
+        if (err < 0)
         {
             return false;
+        }
+        else
+        {
+            device.type = audio_device_type::playback;
         }
     }
     else
     {
-        if ((nameLower.size() > 0 && dNameLower.find(nameLower) == std::string::npos) ||
-            (descLower.size() > 0 && dDescLower.find(descLower) == std::string::npos))
-        {
-            return false;
-        }
+        device.type = audio_device_type::capture;
     }
 
-    if (m.playback_and_capture && !m.playback_or_capture &&
-        !(enum_device_type_has_flag(d.type, audio_device_type::playback) && enum_device_type_has_flag(d.type, audio_device_type::capture)))
+    device.card_id = card_id;
+    device.device_id = device_id;
+                
+    // snd_card_get_name and snd_card_get_longname are implemented here:
+    // https://github.com/torvalds/linux/blob/master/sound/usb/card.c
+    
+    char* name = nullptr;
+    err = snd_card_get_name(card_id, &name);
+    if (err != 0)
+        device.name = "Unknown";
+    else
+        device.name = name;
+    
+    device.stream_name = snd_pcm_info_get_name(pcm_info);
+    
+    char* long_name = nullptr;
+    err = snd_card_get_longname(card_id, &long_name);
+    if (err != 0)
+        device.description = "Unknown";
+    else
+        device.description = long_name;
+    
+    device.hw_id = fmt::format("hw:{},{}", device.card_id, device.device_id);
+    device.plughw_id = fmt::format("plughw:{},{}", device.card_id, device.device_id);
+        
+    // Use snd_pcm_info_get_subdevices_avail, snd_pcm_info_set_subdevice, snd_ctl_pcm_info and
+    // snd_pcm_info_get_subdevice_name to enumerate all subdevices
+    // example here: https://github.com/bear24rw/alsa-utils/blob/master/aplay/aplay.c
+
+    if (device.type == audio_device_type::capture)
     {
-        return false;
-    }
-    if (!m.playback_and_capture && m.playback_or_capture &&
-        !(enum_device_type_has_flag(d.type, audio_device_type::playback) || enum_device_type_has_flag(d.type, audio_device_type::capture)))
-    {
-        return false;
-    }
-    if (!m.playback_and_capture && !m.playback_or_capture && (m.playback || m.capture))
-    {
-        if (m.playback && !enum_device_type_has_flag(d.type, audio_device_type::playback))
+        snd_pcm_info_set_device(pcm_info, device_id);
+        snd_pcm_info_set_subdevice(pcm_info, 0);
+        snd_pcm_info_set_stream(pcm_info, SND_PCM_STREAM_PLAYBACK);
+
+        err = snd_ctl_pcm_info(ctl_handle, pcm_info);
+        
+        if (err >= 0)
         {
-            return false;
-        }
-        if (m.capture && !enum_device_type_has_flag(d.type, audio_device_type::capture))
-        {
-            return false;
+            device.type = device.type | audio_device_type::playback;
         }
     }
 
     return true;
 }
 
-std::vector<audio_device> get_audio_devices(const audio_device_match& m)
+bool can_use_audio_device(const audio_device_info& device, snd_pcm_stream_t mode)
 {
-    std::vector<audio_device> matched_devices;
-    std::vector<audio_device> devices = get_audio_devices();
-    for (const auto& d : devices)
+    snd_pcm_t *handle;
+
+    int err = snd_pcm_open(&handle, device.hw_id.c_str(), mode, SND_PCM_NONBLOCK);
+    if (err < 0)
     {
-        if (match_device(d, m))
+        if (err == -EBUSY)
         {
-            matched_devices.emplace_back(std::move(d));
+            // Device is busy, cannot open
+            return false;
+        }
+        else if (err == -ENODEV)
+        {
+            // Device does not exist or is not available
+            return false;
+        }
+        else
+        {
+            // Other error occurred, handle it as needed
+            return false;
         }
     }
-    return matched_devices;
-}
 
-bool can_use_device(const audio_device& device)
-{
+    snd_pcm_close(handle);
+
     return true;
 }
+
+bool can_use_audio_device(const audio_device_info& device)
+{
+    if (device.type == audio_device_type::capture)
+    {
+        return can_use_audio_device(device, SND_PCM_STREAM_CAPTURE);
+    }
+    else if (device.type == audio_device_type::playback)
+    {
+        return can_use_audio_device(device, SND_PCM_STREAM_PLAYBACK);
+    }
+    else if (enum_device_type_has_flag(device.type, audio_device_type::capture) && 
+        enum_device_type_has_flag(device.type, audio_device_type::playback))
+    {
+        return can_use_audio_device(device, SND_PCM_STREAM_CAPTURE) &&
+            can_use_audio_device(device, SND_PCM_STREAM_PLAYBACK);
+    }
+    return false;
+}
+
+// **************************************************************** //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+// SERIAL PORTS                                                     //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+// **************************************************************** //
+
+std::vector<serial_port> get_serial_ports()
+{
+    std::vector<serial_port> ports;
+
+    udev* udev = udev_new();
+    if (udev == nullptr)
+        return ports;
+
+    udev_enumerate* enumerate = udev_enumerate_new(udev);
+    if (enumerate == nullptr)
+    {
+        udev_unref(udev);
+        return ports;
+    }
+
+    // Only supports USB serial ports
+    // Consider using libusb, or USB sysfs in the future
+    // Could there be other types of serial ports that are not tty?
+    
+    udev_enumerate_add_match_subsystem(enumerate, "tty");
+    udev_enumerate_add_match_property(enumerate, "ID_BUS", "usb");
+
+    udev_enumerate_scan_devices(enumerate);
+
+    udev_list_entry* devices = udev_enumerate_get_list_entry(enumerate);
+    if (devices == nullptr)
+    {
+        udev_enumerate_unref(enumerate);
+        udev_unref(udev);
+        return ports;
+    }
+
+    udev_list_entry* dev_list_entry;
+    udev_list_entry_foreach(dev_list_entry, devices)
+    {
+        const char* path = udev_list_entry_get_name(dev_list_entry);
+
+        udev_device* dev = udev_device_new_from_syspath(udev, path);
+        if (dev == nullptr)
+            continue;
+
+        const char* devnode = udev_device_get_devnode(dev);
+
+        udev_device* usb_dev = udev_device_get_parent_with_subsystem_devtype(dev, "usb", "usb_device");
+        if (usb_dev == nullptr)
+        {
+            udev_device_unref(dev);
+            continue;
+        }
+
+        // Other properties: udevadm info --attribute-walk --path=/sys/bus/usb-serial/devices/ttyUSB0
+        // To inspect the USB tree with libusb: lsusb -t
+        // 
+        // Source code location: https://github.com/systemd/systemd/blob/main/src/libudev/libudev-device.c
+
+        const char* manufacturer = udev_device_get_sysattr_value(usb_dev, "manufacturer");
+        const char* product = udev_device_get_sysattr_value(usb_dev, "product");
+        const char* serial = udev_device_get_sysattr_value(usb_dev, "serial");
+        
+        serial_port port;
+
+        if (manufacturer != nullptr)
+            port.manufacturer = manufacturer;
+        if (serial != nullptr)
+            port.device_serial_number = serial;
+        if (product != nullptr)
+            port.description = product;
+        if (devnode != nullptr)
+            port.name = devnode;
+        
+        ports.push_back(port);
+
+        udev_device_unref(dev);
+    }
+
+    udev_enumerate_unref(enumerate);
+    udev_unref(udev);
+
+    return ports;
+}
+
+std::string to_json(const serial_port& p, bool wrapping_object, int tabs)
+{
+    std::string s;
+    if (wrapping_object)
+    {
+        s.append("{\n");
+    }
+    s.append("    \"name\": \"" + p.name + "\",\n");
+    s.append("    \"description\": \"" + p.description + "\",\n");
+    s.append("    \"manufacturer\": \"" + p.manufacturer + "\",\n");
+    s.append("    \"device_serial_number\": \"" + p.device_serial_number + "\"");
+    if (wrapping_object)
+    {
+        s.append("\n");
+        s.append("}");
+    }
+    insert_tabs(s, tabs);
+    return s;
+}
+
+// **************************************************************** //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+// DEVICES                                                          //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+// **************************************************************** //
+
+int get_topology_depth(udev_device* device);
+bool try_find_device(udev* udev, udev_enumerate* enumerate, udev_device*& device, udev_device*& usb_device);
+bool try_get_device_description(udev* udev, udev_enumerate* enumerate, udev_device*& device, udev_device*& usb_device, device_description& desc);
+bool try_get_device_description(std::function<void(udev_enumerate*)> filter, device_description& desc);
+bool try_get_device_description(const audio_device_info& d, device_description& desc);
+bool try_get_device_description(const serial_port& p, device_description& desc);
+void fetch_device_description(udev_device* device, udev_device* usb_device, device_description& desc);
+bool try_find_device(udev_device* device, udev_device*& usb_device);
+std::vector<device_description> get_sibling_devices(std::function<void(udev_enumerate*)> filter, const device_description& desc);
+
+bool try_get_device_description(const audio_device_info& d, device_description& desc)
+{
+    return try_get_device_description([&d](udev_enumerate* enumerate) {
+        udev_enumerate_add_match_subsystem(enumerate, "sound");
+        udev_enumerate_add_match_sysname(enumerate, fmt::format("card{}", d.card_id).c_str());
+    }, desc);
+}
+
+bool try_get_device_description(const serial_port& p, device_description& desc)
+{
+    return try_get_device_description([&p](udev_enumerate* enumerate) {
+        udev_enumerate_add_match_subsystem(enumerate, "tty");
+        udev_enumerate_add_match_property(enumerate, "DEVNAME", p.name.c_str());
+    }, desc);
+}
+
+bool try_get_device_description(std::function<void(udev_enumerate*)> filter, device_description& desc)
+{
+    bool found = false;
+
+    udev* udev = udev_new();
+    if (udev == nullptr)
+    {
+        return found;
+    }
+
+    udev_enumerate* enumerate = udev_enumerate_new(udev);
+    if (enumerate == nullptr)
+    {
+        udev_unref(udev);
+        return found;
+    }
+
+    filter(enumerate);
+
+    udev_device* device = nullptr;
+    udev_device* usb_device = nullptr;
+    found = try_get_device_description(udev, enumerate, device, usb_device, desc);
+
+    // NOTE: Should check that the device we found matched the filter? ex: udev_device_get_sysattr_value(dev, "number");
+    // Should check that only one enumeration?
+    
+    udev_device_unref(device);
+    udev_enumerate_unref(enumerate);
+    udev_unref(udev);
+
+    return found;
+}
+
+bool try_get_device_description(udev* udev, udev_enumerate* enumerate, udev_device*& device, udev_device*& usb_device, device_description& desc)
+{
+    if (!try_find_device(udev, enumerate, device, usb_device))
+    {
+        return false;
+    }
+
+    fetch_device_description(device, usb_device, desc);
+
+    return true;
+}
+
+void fetch_device_description(udev_device* device, udev_device* usb_device, device_description& desc)
+{
+    const char* syspath = udev_device_get_syspath(device);
+    const char* usb_syspath = udev_device_get_syspath(usb_device);
+    const char* busnum = udev_device_get_sysattr_value(usb_device, "busnum");
+    const char* devnum = udev_device_get_sysattr_value(usb_device, "devnum");
+    const char* dev_driver = udev_device_get_driver(usb_device);
+    const char* dev_id_vendor = udev_device_get_sysattr_value(usb_device, "idVendor");
+    const char* dev_id_product = udev_device_get_sysattr_value(usb_device, "idProduct");
+    const char* dev_product = udev_device_get_sysattr_value(usb_device, "product");
+    const char* dev_manufacturer = udev_device_get_sysattr_value(usb_device, "manufacturer");
+
+    if (busnum != nullptr)
+        try_parse_number(busnum, desc.bus_number);
+    if (devnum != nullptr)
+        try_parse_number(devnum, desc.device_number);
+    if (dev_id_product != nullptr)
+        desc.id_product = dev_id_product;
+    if (dev_id_vendor != nullptr)
+        desc.id_vendor = dev_id_vendor;
+    if (dev_product != nullptr)
+        desc.product = dev_product;
+    if (dev_manufacturer != nullptr)
+        desc.manufacturer = dev_manufacturer;
+    if (syspath != nullptr)
+        desc.path = syspath;
+    if (usb_syspath != nullptr)
+        desc.hw_path = usb_syspath;
+
+    desc.topology_depth = get_topology_depth(usb_device);
+}
+
+bool try_get_device_description(udev_device* device, udev_device*& usb_device, device_description& desc)
+{
+    if (!try_find_device(device, usb_device))
+    {
+        return false;
+    }
+
+    fetch_device_description(device, usb_device, desc);
+
+    return true;
+}
+
+bool try_find_device(udev* udev, udev_enumerate* enumerate, udev_device*& device, udev_device*& usb_device)
+{
+    udev_enumerate_scan_devices(enumerate);
+
+    udev_list_entry* devices = udev_enumerate_get_list_entry(enumerate);
+    if (devices == nullptr)
+    {
+        return false;
+    }
+
+    device = udev_device_new_from_syspath(udev, udev_list_entry_get_name(devices));
+    if (device == nullptr)
+    {
+        return false;
+    }
+
+    usb_device = udev_device_get_parent_with_subsystem_devtype(device, "usb", "usb_device");
+
+    if (usb_device == nullptr)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool try_find_device(udev_device* device, udev_device*& usb_device)
+{
+    usb_device = udev_device_get_parent_with_subsystem_devtype(device, "usb", "usb_device");
+
+    if (usb_device == nullptr)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+int get_topology_depth(udev_device* device)
+{
+    int depth = 0;
+    udev_device* parent = device;
+    while (true)
+    {
+         parent = udev_device_get_parent(parent);
+         const char* subsystem = udev_device_get_subsystem(parent);
+         if (subsystem == nullptr || strlen(subsystem) == 0)
+            break;
+         depth++;
+    }
+    return depth;
+}
+
+std::vector<device_description> get_sibling_audio_devices(const device_description& desc)
+{
+    return get_sibling_devices([](udev_enumerate* enumerate) {
+        udev_enumerate_add_match_subsystem(enumerate, "sound");
+        udev_enumerate_add_match_sysname(enumerate, "card*");
+        udev_enumerate_add_match_property(enumerate, "ID_BUS", "usb");
+    }, desc);
+}
+
+std::vector<device_description> get_sibling_serial_ports(const device_description& desc)
+{
+    return get_sibling_devices([](udev_enumerate* enumerate) {
+        udev_enumerate_add_match_subsystem(enumerate, "tty");
+        udev_enumerate_add_match_property(enumerate, "ID_BUS", "usb");
+    }, desc);
+}
+
+std::vector<device_description> get_sibling_devices(std::function<void(udev_enumerate*)> filter, const device_description& desc)
+{
+    std::vector<device_description> siblings;
+
+    udev* udev = udev_new();
+    if (udev == nullptr)
+        return siblings;
+
+    udev_device* dev = nullptr;
+
+    // Get device from path
+    dev = udev_device_new_from_syspath(udev, desc.path.c_str());
+    if (dev == nullptr)
+    {
+        udev_unref(udev);
+        return siblings;        
+    }
+
+    // Get the corresponding USB device
+    udev_device* usb_dev = udev_device_get_parent_with_subsystem_devtype(dev, "usb", "usb_device");
+    if (usb_dev == nullptr)
+    {
+        udev_device_unref(dev);
+        udev_unref(udev);
+        return siblings;        
+    }
+
+    // Get the USB device's parent USB device
+    udev_device* parent_usb_dev = udev_device_get_parent_with_subsystem_devtype(usb_dev, "usb", "usb_device");
+    if (parent_usb_dev == nullptr)
+    {
+        udev_device_unref(dev);
+        udev_unref(udev);
+        return siblings;        
+    }
+
+    udev_enumerate* enumerate = udev_enumerate_new(udev);
+    if (enumerate == nullptr)
+    {
+        udev_device_unref(dev);
+        udev_unref(udev);
+        return siblings;
+    }
+
+    udev_enumerate_add_match_parent(enumerate, parent_usb_dev);
+
+    filter(enumerate);
+
+    udev_enumerate_scan_devices(enumerate);
+ 
+    udev_list_entry *sibling_list_entry = nullptr;
+    udev_device *sibling_dev = nullptr;
+    udev_list_entry* devices = udev_enumerate_get_list_entry(enumerate);
+
+    udev_list_entry_foreach(sibling_list_entry, devices)
+    {
+        const char *path = udev_list_entry_get_name(sibling_list_entry);
+        sibling_dev = udev_device_new_from_syspath(udev, path);      
+        udev_device* sibling_usb_device;
+        device_description sibling_desc;
+        if (try_get_device_description(sibling_dev, sibling_usb_device, sibling_desc))
+            siblings.push_back(sibling_desc);
+        udev_device_unref(sibling_dev);
+    }
+
+    udev_device_unref(dev);
+    udev_enumerate_unref(enumerate);
+    udev_unref(udev);    
+
+    return siblings;
+}
+
+std::vector<audio_device_info> get_audio_devices(const device_description& desc)
+{
+    std::vector<audio_device_info> devices;
+
+    udev* udev = udev_new();
+    if (!udev)
+        return devices;
+
+    udev_device* dev = nullptr;
+
+    // Get device from path
+    dev = udev_device_new_from_syspath(udev, desc.path.c_str());
+    if (dev == nullptr)
+    {
+        udev_unref(udev);
+        return devices;
+    }
+
+    const char* card_id_str = udev_device_get_sysattr_value(dev, "number");
+    int card_id;
+    if (card_id_str != nullptr && try_parse_number(card_id_str, card_id))
+        devices = get_audio_devices(card_id);
+
+    udev_device_unref(dev);
+    udev_unref(udev);
+
+    return devices;
+}
+
+bool try_get_serial_port(const device_description& desc, serial_port& port)
+{
+    udev* udev = udev_new();
+    if (!udev)
+        return false;
+
+    udev_device* dev = nullptr;
+
+    // Get device from path
+    dev = udev_device_new_from_syspath(udev, desc.path.c_str());
+    if (dev == nullptr)
+    {
+        udev_unref(udev);
+        return false;
+    }
+
+    bool found = false;
+
+    const char* devnode = udev_device_get_devnode(dev);
+
+    for (const serial_port& p : get_serial_ports())
+    {
+        if (p.name == devnode)
+        {
+            port = p;
+            found = true;
+            break;
+        }
+    }
+
+    udev_device_unref(dev);
+    udev_unref(udev);
+
+    return found;
+}
+
+std::string to_json(const device_description& d, bool wrapping_object, int tabs)
+{
+    std::string s;
+    if (wrapping_object)
+    {
+        s.append("{\n");
+    }
+    s.append("    \"bus_number\": \"" + std::to_string(d.bus_number) + "\",\n");
+    s.append("    \"device_number\": \"" + std::to_string(d.device_number) + "\",\n");
+    s.append("    \"id_product\": \"" + d.id_product + "\",\n");
+    s.append("    \"id_vendor\": \"" + d.id_vendor + "\",\n");
+    s.append("    \"manufacturer\": \"" + d.manufacturer + "\",\n");
+    s.append("    \"path\": \"" + d.path + "\",\n");
+    s.append("    \"hw_path\": \"" + d.hw_path + "\",\n");
+    s.append("    \"product\": \"" + d.product + "\",\n");
+    s.append("    \"topology_depth\": \"" + std::to_string(d.topology_depth) + "\"");
+    if (wrapping_object)
+    {
+        s.append("\n");
+        s.append("}");
+    }
+    insert_tabs(s, tabs);
+    return s;
+}
+

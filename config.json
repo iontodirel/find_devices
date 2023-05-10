@@ -1,0 +1,32 @@
+    {
+        "$schema": "config_schema.json",
+        "search_criteria":
+        {
+            "audio":
+            {
+                "name": "",
+                "desc": "",
+                "bus": "",
+                "device": "",
+                "topology_depth": "",
+                "path": "",
+                "type": "playback|capture"
+            },
+            "port":
+            {
+                "name": "",
+                "desc": "",
+                "bus": "",
+                "device": "",
+                "topology_depth": "",
+                "path": "",
+                "serial": ""
+            }
+        },
+        "search_mode": "independent",
+        "expected_count": "",
+        "list_properties": "true",
+        "display_mode": "audio, ports",
+        "use_json": "false",
+        "output_file": "file6.json"
+    }

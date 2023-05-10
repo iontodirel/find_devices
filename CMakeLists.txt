@@ -27,16 +27,50 @@ cmake_minimum_required (VERSION 3.8)
 
 project (find_devices VERSION 1.0 LANGUAGES CXX)
 
-add_executable (find_devices "find_devices.cpp" "find_devices.h" "main.cpp")
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
+include(FetchContent)
+
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
+FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG master)
+FetchContent_MakeAvailable(fmt)
+
+add_executable (find_devices "find_devices.cpp" "find_devices.hpp" "main.cpp")
 
 set_property(TARGET find_devices PROPERTY CXX_STANDARD 20)
 
-target_link_libraries(find_devices PUBLIC asound)
+#find_library(LIBUSB_LIBRARY NAMES usb-1.0 libusb-1.0)
+#find_path(LIBUSB_INCLUDE_DIR NAMES libusb.h PATH_SUFFIXES "include" "libusb" "libusb-1.0")
+#find_library(LIBUSB_LIBRARY NAMES usb PATH_SUFFIXES "lib" "lib32" "lib64")
+#target_include_directories(find_devices SYSTEM PUBLIC ${LIBUSB_INCLUDE_DIR})
+#target_link_libraries(find_devices PUBLIC asound udev usb usb-1.0)
 
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_options(find_devices PRIVATE -O0 -g -fno-aggressive-loop-optimizations)
-endif()
+target_link_libraries(find_devices PUBLIC asound udev nlohmann_json::nlohmann_json fmt::fmt)
 
 if (NOT UNIX)
     message(FATAL_ERROR "Only supported on Linux. Not a Linux operating system.")
 endif (NOT UNIX)
+
+set(GIT_HASH "unknown")
+
+find_package(Git)
+
+if(GIT_FOUND)
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} log -1 --pretty=format:%h
+    OUTPUT_VARIABLE GIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+    )
+endif()
+
+message(STATUS "Git hash is ${GIT_HASH}")
+
+target_compile_definitions(find_devices PRIVATE GIT_HASH=${GIT_HASH})
+
+configure_file("${PROJECT_SOURCE_DIR}/config.json" "${PROJECT_BINARY_DIR}/config.json")
+configure_file("${PROJECT_SOURCE_DIR}/config_schema.json" "${PROJECT_BINARY_DIR}/config_schema.json")

@@ -1,0 +1,99 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Generated schema for Root",
+    "type": "object",
+      "properties": {
+        "additionalProperties": false,
+        "search_criteria": {
+        "type": "object",
+        "properties": {
+          "audio": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "desc": {
+                "type": "string"
+              },
+              "bus": {
+                "type": "string"
+              },
+              "device": {
+                "type": "string"
+              },
+              "topology_depth": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "oneOf": [
+                  {"enum": ["playback", "capture", "playback|capture", "playback&capture"]}
+              ]
+              }
+            }
+          },
+          "port": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "desc": {
+                "type": "string"
+              },
+              "bus": {
+                "type": "string",
+                "format": "integer"
+              },
+              "device": {
+                "type": "string",
+                "format": "integer"
+              },
+              "topology_depth": {
+                "type": "string",
+                "format": "integer"
+              },
+              "path": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "search_mode": {
+        "type": "string",
+        "oneOf": [
+            {"enum": ["audio-siblings", "independent", "port-siblings"]}
+        ],
+        "description": "Type of search, one of: audio-siblings, independent or port-siblings"
+      },
+      "expected_count": {
+        "type": "string",
+        "format": "integer",
+        "description": "How many results to expect. Integer."
+      },
+      "display_mode": {
+        "type": "string",
+        "description": "Type of information to print, can be: audio, ports, or both. Separate by comma if both.",
+        "oneOf": [
+            {"enum": ["audio", "ports", "audio, ports", "audio,ports", "ports, audio", "ports,audio"]}
+        ]
+      },
+      "use_json": {
+        "type": "string",
+        "format": "boolean",
+        "description": "Whether to print or write the information in JSON format. Boolean.",
+        "oneOf": [
+            {"enum": ["true", "false"]}
+        ]
+      },
+      "output_file": {
+        "type": "string",
+        "description": "The file to write the output of the program to."
+      }
+    }
+  }
