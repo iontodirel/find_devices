@@ -20,6 +20,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Install sudo package
+      run: apt update && apt install sudo
+
     - name: Install dependencies
       run: sudo ${{github.workspace}}/install_dependencies.sh
 
