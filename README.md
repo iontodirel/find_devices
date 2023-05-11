@@ -63,7 +63,7 @@ plughw:1,0
 
 ## Building
 
-Install the dependecies listed in `install_dependencies.sh`.
+Install the dependencies listed in `install_dependencies.sh`.
 
 Clone this repo with `git clone https://github.com/iontodirel/find_devices.git`.
 
@@ -79,7 +79,7 @@ make
 
 ### Dependencies
 
-This project uses `libudev` and `libsound2` as development library dependencies.
+This project uses `libudev` and `libsound2` as development library dependencies, which need to be installed with your system package manager.
 
 This project is using `CMake`, and has been tested with the GCC compiler.
 
@@ -88,6 +88,10 @@ This project is using `CMake`, and has been tested with the GCC compiler.
 You can use `Visual Studio` or `VSCode` for remote Linux development.
 
 My setup include a Linux machine running Ubuntu 22.03 Desktop. I do the development in Windows in VSCode or Visual Studio.
+
+### Github Actions
+
+A build action automatically builds the project code commits. This makes sure the project builds successfully and the build is well maintained.
 
 #### VSCode
 
