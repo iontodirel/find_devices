@@ -6,6 +6,11 @@ Use this utility to search for audio devices and serial ports.
 
 The functionally of this utility is focused for ham radio use, to help with integration and automation with Direwolf.
 
+## Table of contents
+
+- [Motivation](#motivation)
+- [Limitations](#limitations)
+
 ## Motivation
 
 - Easy and quick enumeration of audio devices and serial ports within one tool
@@ -49,7 +54,7 @@ card 1: CODEC [USB AUDIO  CODEC], device 0: USB Audio [USB Audio]\
 
 ### Obtaining audio devices with find_devices
 
-To retrieve audio capture and playback devices in JSON format:
+#### To retrieve audio capture and playback devices in JSON format
 
 `./find_devices --type 'capture&playback' --json`\
 {\
@@ -75,13 +80,13 @@ To retrieve audio capture and playback devices in JSON format:
 &nbsp;&nbsp;&nbsp;&nbsp;] \
 }
 
-To retrieve audio capture and serial ports and print them to stdout:
+#### To retrieve audio capture and serial ports and print them to stdout
 
 Simply run with no arguments `./find_devices`
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/36f088c3-a332-4329-aaff-eeb28c45b7ee)
 
-To print detailed information about each device, add the `-p` argument:
+#### To print detailed information about each device, add the `-p` argument
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/7c017b89-581f-465d-89ef-8966e4a327f9)
 
