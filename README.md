@@ -6,6 +6,11 @@ Use this utility to search for audio devices and serial ports.
 
 The functionally of this utility is focused for ham radio use, to help with integration and automation with Direwolf.
 
+`./find_devices -p --print "audio,ports" --audio-begin --desc Texas --audio-end --port-begin --desc cp21 --port-end`
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/16e63b8e-40b7-43b4-9cbe-212f95ac3c2d)
+
+
 ## Motivation
 
 - Easy and quick enumeration of audio devices and serial ports within one tool
@@ -31,6 +36,9 @@ The functionally of this utility is focused for ham radio use, to help with inte
   - [Obtaining audio devices with find_devices](#obtaining-audio-devices-with-find_devices)
 - [JSON parsing example with jq](#json-parsing-example-with-jq)
 - [Building](#building)
+  - [Dependencies](#dependencies)
+  - [Dependencies](#development)
+  - [Github Actions](#github-actions)
 
 ## Limitations
 
