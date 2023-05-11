@@ -75,6 +75,16 @@ To retrieve audio capture and playback devices in JSON format:
 &nbsp;&nbsp;&nbsp;&nbsp;] \
 }
 
+To retrieve audio capture and serial ports and print them to stdout:
+
+Simply run with no arguments `./find_devices`
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/36f088c3-a332-4329-aaff-eeb28c45b7ee)
+
+To print detailed information about each device, add the `-p` argument:
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/7c017b89-581f-465d-89ef-8966e4a327f9)
+
 ## JSON parsing example with jq
 
 Install `jq`.
