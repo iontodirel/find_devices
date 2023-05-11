@@ -1,5 +1,5 @@
 ﻿// find_devices.hpp
-// Alsa audio device finding utility.
+// Audio device and serial ports finding utility.
 //
 // MIT License
 //
@@ -28,7 +28,6 @@
 #include <vector>
 #include <string>
 #include <locale>
-#include <memory>
 #include <sstream>
 
 // **************************************************************** //
@@ -50,16 +49,6 @@ namespace
         if (result)
             number = maybe_number;
         return result;
-    }
-
-    std::string to_lower(const std::string& str)
-    {
-        std::locale loc;
-        std::string s;
-        s.resize(str.size());
-        for (size_t i = 0; i < str.size(); i++)
-            s[i] = std::tolower(str[i], loc);
-        return s;
     }
 }
 

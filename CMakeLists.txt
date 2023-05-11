@@ -1,5 +1,5 @@
 ﻿# CMakeLists.txt
-# Alsa audio device finding utility.
+# Audio device and serial ports finding utility.
 #
 # MIT License
 #
@@ -43,14 +43,6 @@ add_executable (find_devices "find_devices.cpp" "find_devices.hpp" "main.cpp")
 
 set_property(TARGET find_devices PROPERTY CXX_STANDARD 20)
 
-#find_library(LIBUSB_LIBRARY NAMES usb-1.0 libusb-1.0)
-#find_path(LIBUSB_INCLUDE_DIR NAMES libusb.h PATH_SUFFIXES "include" "libusb" "libusb-1.0")
-#find_library(LIBUSB_LIBRARY NAMES usb PATH_SUFFIXES "lib" "lib32" "lib64")
-#target_include_directories(find_devices SYSTEM PUBLIC ${LIBUSB_INCLUDE_DIR})
-#target_link_libraries(find_devices PUBLIC asound udev usb usb-1.0)
-
-target_link_libraries(find_devices PUBLIC asound udev nlohmann_json::nlohmann_json fmt::fmt)
-
 if (NOT UNIX)
     message(FATAL_ERROR "Only supported on Linux. Not a Linux operating system.")
 endif (NOT UNIX)
@@ -71,6 +63,8 @@ endif()
 message(STATUS "Git hash: ${GIT_HASH}")
 
 target_compile_definitions(find_devices PRIVATE GIT_HASH=${GIT_HASH})
+target_compile_options(find_devices PRIVATE -v -Wall -Wextra -Wpedantic -Werror)
+target_link_libraries(find_devices PUBLIC asound udev nlohmann_json::nlohmann_json fmt::fmt)
 
 configure_file("${PROJECT_SOURCE_DIR}/config.json" "${PROJECT_BINARY_DIR}/config.json")
 configure_file("${PROJECT_SOURCE_DIR}/config_schema.json" "${PROJECT_BINARY_DIR}/config_schema.json")

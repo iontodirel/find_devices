@@ -1,5 +1,5 @@
 // main.cpp
-// Alsa audio device finding utility.
+// Audio device and serial ports finding utility.
 // 
 // MIT License
 // 
@@ -87,6 +87,16 @@ namespace
             return path;
         return std::filesystem::current_path() / path;
     }
+
+    std::string to_lower(const std::string& str)
+    {
+        std::locale loc;
+        std::string s;
+        s.resize(str.size());
+        for (size_t i = 0; i < str.size(); i++)
+            s[i] = std::tolower(str[i], loc);
+        return s;
+    }
 }
 
 // **************************************************************** //
@@ -96,6 +106,13 @@ namespace
 //                                                                  //
 //                                                                  //
 // **************************************************************** //
+
+struct audio_device_filter;
+struct serial_port_filter;
+enum class search_mode;
+enum class display_mode;
+struct args;
+struct search_result;
 
 struct audio_device_filter
 {
@@ -173,6 +190,20 @@ struct search_result
 std::vector<audio_device_info> get_audio_devices(const audio_device_filter& m);
 bool match_audio_device(const audio_device_info& d, const audio_device_filter& m);
 
+std::vector<audio_device_info> get_audio_devices(const audio_device_filter& m)
+{
+    std::vector<audio_device_info> matchedDevices;
+    std::vector<audio_device_info> devices = get_audio_devices();
+    for (const auto& d : devices)
+    {
+        if (match_audio_device(d, m))
+        {
+            matchedDevices.emplace_back(std::move(d));
+        }
+    }
+    return matchedDevices;
+}
+
 bool match_audio_device(const audio_device_info& d, const audio_device_filter& m)
 {
     std::string device_name = to_lower(d.name);
@@ -221,20 +252,6 @@ bool match_audio_device(const audio_device_info& d, const audio_device_filter& m
     return true;
 }
 
-std::vector<audio_device_info> get_audio_devices(const audio_device_filter& m)
-{
-    std::vector<audio_device_info> matchedDevices;
-    std::vector<audio_device_info> devices = get_audio_devices();
-    for (const auto& d : devices)
-    {
-        if (match_audio_device(d, m))
-        {
-            matchedDevices.emplace_back(std::move(d));
-        }
-    }
-    return matchedDevices;
-}
-
 // **************************************************************** //
 //                                                                  //
 // SERIAL PORTS                                                     //
@@ -243,6 +260,8 @@ std::vector<audio_device_info> get_audio_devices(const audio_device_filter& m)
 
 std::vector<serial_port> get_serial_ports(const serial_port_filter& m);
 bool match_port(const serial_port& p, const serial_port_filter& m);
+bool match_device(const device_description& p, const audio_device_filter& m);
+bool match_device(const device_description& p, const serial_port_filter& m);
 
 std::vector<serial_port> get_serial_ports(const serial_port_filter& m)
 {
@@ -307,22 +326,6 @@ bool match_device(const device_description& p, const serial_port_filter& m)
     return true;
 }
 
-bool has_audio_device_description_filter(const args& args)
-{
-    return (args.audio_filter.bus != -1 ||
-        args.audio_filter.device != -1 || 
-        args.audio_filter.path.size() > 0 ||
-        args.audio_filter.topology != -1);
-}
-
-bool has_serial_port_description_filter(const args& args)
-{
-    return (args.port_filter.bus != -1 ||
-        args.port_filter.device != -1 || 
-        args.port_filter.path.size() > 0 ||
-        args.port_filter.topology != -1);
-}
-
 // **************************************************************** //
 //                                                                  //
 // SEARCH                                                           //
@@ -330,10 +333,15 @@ bool has_serial_port_description_filter(const args& args)
 // **************************************************************** //
 
 std::vector<std::pair<audio_device_info, device_description>> filter_audio_devices(const args& args, const std::vector<audio_device_info>& devices);
-std::vector<std::pair<serial_port, device_description>> filter_ports(const args& args, const std::vector<serial_port>& ports);
+std::vector<std::pair<serial_port, device_description>> filter_serial_ports(const args& args, const std::vector<serial_port>& ports);
 std::vector<audio_device_info> get_sibling_audio_devices(const std::vector<std::pair<serial_port, device_description>>& ports);
 std::vector<serial_port> get_sibling_serial_ports(const std::vector<std::pair<audio_device_info, device_description>>& devices);
 search_result search(const args& args);
+search_mode parse_from_string(const std::string& mode);
+bool has_audio_device_description_filter(const args& args);
+bool has_serial_port_description_filter(const args& args);
+
+std::string to_json(const search_result& result);
 
 std::vector<std::pair<audio_device_info, device_description>> filter_audio_devices(const args& args, const std::vector<audio_device_info>& devices)
 {
@@ -357,7 +365,7 @@ std::vector<std::pair<audio_device_info, device_description>> filter_audio_devic
     return audio_devices;
 }
 
-std::vector<std::pair<serial_port, device_description>> filter_ports(const args& args, const std::vector<serial_port>& ports)
+std::vector<std::pair<serial_port, device_description>> filter_serial_ports(const args& args, const std::vector<serial_port>& ports)
 {
     std::vector<std::pair<serial_port, device_description>> serial_ports;
     for (serial_port p : ports)
@@ -422,17 +430,17 @@ search_result search(const args& args)
     if (args.search_strategy == search_mode::independent)
     {
         result.devices = filter_audio_devices(args, get_audio_devices());
-        result.ports = filter_ports(args, get_serial_ports());
+        result.ports = filter_serial_ports(args, get_serial_ports());
     }
     else if (args.search_strategy == search_mode::port_siblings)
     {
-        result.ports = filter_ports(args, get_serial_ports());
+        result.ports = filter_serial_ports(args, get_serial_ports());
         result.devices = filter_audio_devices(args, get_sibling_audio_devices(result.ports));        
     }
     else if (args.search_strategy == search_mode::audio_siblings)
     {
         result.devices = filter_audio_devices(args, get_audio_devices());
-        result.ports = filter_ports(args, get_sibling_serial_ports(result.devices));
+        result.ports = filter_serial_ports(args, get_sibling_serial_ports(result.devices));
     }
     return result;
 }
@@ -454,61 +462,79 @@ search_mode parse_from_string(const std::string& mode)
     return search_mode::not_set;
 }
 
+std::string to_json(const search_result& result)
+{
+    std::string s;
+    s += "{\n";
+    s += "    \"audio_devices\": [\n";
+    size_t i = 0;
+    for (const auto& d : result.devices)
+    {
+        s += "        {\n";
+        s += to_json(d.first, false, 2);
+        s += ",\n";
+        s += to_json(d.second, false, 2);
+        s += "\n";
+        s += "        }";
+        if ((i + 1) < result.devices.size())
+        {
+            s.append(",");
+        }
+        s.append("\n");
+        i++;
+    }
+    
+    s += "    ],\n";
+    s += "    \"serial_ports\": [\n";    
+
+    size_t j = 0;
+    for (const auto& p : result.ports)
+    {
+        s += "        {\n";
+        s += to_json(p.first, false, 2);
+        s += ",\n";
+        s += to_json(p.second, false, 2);
+        s += "\n";
+        s += "        }";
+         if ((j + 1) < result.ports.size())
+        {
+            s.append(",");
+        }
+        s.append("\n");
+        j++;
+    }
+
+    s += "    ]\n";
+    s += "}";
+
+    return s;
+}
+
+bool has_audio_device_description_filter(const args& args)
+{
+    return (args.audio_filter.bus != -1 ||
+        args.audio_filter.device != -1 || 
+        args.audio_filter.path.size() > 0 ||
+        args.audio_filter.topology != -1);
+}
+
+bool has_serial_port_description_filter(const args& args)
+{
+    return (args.port_filter.bus != -1 ||
+        args.port_filter.device != -1 || 
+        args.port_filter.path.size() > 0 ||
+        args.port_filter.topology != -1);
+}
+
 // **************************************************************** //
 //                                                                  //
 // COMMAND LINE                                                     //
 //                                                                  //
 // **************************************************************** //
 
-void read_settings(args& args);
 args parse_command_line(int argc, char* argv[]);
 void parse_audio_device_type(const std::string& typeStr, args& args);
 display_mode parse_print_mode(const std::string& mode);
-
-void parse_audio_device_type(const std::string& typeStr, args& args)
-{
-    args.audio_filter.playback_or_capture = false;
-    args.audio_filter.playback_only = false;
-    args.audio_filter.capture_only = false;
-    args.audio_filter.playback_and_capture = false;
-
-    if (typeStr == "playback")
-    {
-        args.audio_filter.playback_only = true;
-    }
-    else if (typeStr == "capture")
-    {
-        args.audio_filter.capture_only = true;
-    }
-    else if (typeStr == "playback|capture" || typeStr == "playback | capture" ||
-        typeStr == "capture|playback" || typeStr == "capture | playback")
-    {
-        args.audio_filter.playback_or_capture = true;
-    }
-    else if (typeStr == "playback&capture" || typeStr == "playback & capture" ||
-        typeStr == "capture&playback" || typeStr == "capture & playback")
-    {
-        args.audio_filter.playback_and_capture = true;
-    }
-}
-
-display_mode parse_print_mode(const std::string& mode)
-{
-    if (mode == "audio")
-    {
-        return display_mode::audio;
-    }
-    else if (mode == "ports")
-    {
-        return display_mode::ports;
-    }
-    else if (mode == "audio, ports" || mode == "audio,ports" ||
-    mode == "ports, audio" || mode == "ports,audio")
-    {
-        return display_mode::audio_and_ports;
-    }
-    return display_mode::not_set;
-}
 
 args parse_command_line(int argc, char* argv[])
 {
@@ -674,11 +700,58 @@ args parse_command_line(int argc, char* argv[])
     return args;
 }
 
+void parse_audio_device_type(const std::string& typeStr, args& args)
+{
+    args.audio_filter.playback_or_capture = false;
+    args.audio_filter.playback_only = false;
+    args.audio_filter.capture_only = false;
+    args.audio_filter.playback_and_capture = false;
+
+    if (typeStr == "playback")
+    {
+        args.audio_filter.playback_only = true;
+    }
+    else if (typeStr == "capture")
+    {
+        args.audio_filter.capture_only = true;
+    }
+    else if (typeStr == "playback|capture" || typeStr == "playback | capture" ||
+        typeStr == "capture|playback" || typeStr == "capture | playback")
+    {
+        args.audio_filter.playback_or_capture = true;
+    }
+    else if (typeStr == "playback&capture" || typeStr == "playback & capture" ||
+        typeStr == "capture&playback" || typeStr == "capture & playback")
+    {
+        args.audio_filter.playback_and_capture = true;
+    }
+}
+
+display_mode parse_print_mode(const std::string& mode)
+{
+    if (mode == "audio")
+    {
+        return display_mode::audio;
+    }
+    else if (mode == "ports")
+    {
+        return display_mode::ports;
+    }
+    else if (mode == "audio, ports" || mode == "audio,ports" ||
+    mode == "ports, audio" || mode == "ports,audio")
+    {
+        return display_mode::audio_and_ports;
+    }
+    return display_mode::not_set;
+}
+
 // **************************************************************** //
 //                                                                  //
 // SETTINGS                                                         //
 //                                                                  //
 // **************************************************************** //
+
+void read_settings(args& args);
 
 void read_settings(args& args)
 {
@@ -797,10 +870,10 @@ void read_settings(args& args)
 //                                                                  //
 // **************************************************************** //
 
+int main(int argc, char* argv[]);
 int print_usage();
+void print_pretty(args& args, search_result& result);
 int list_devices(args& args);
-void print_device(const args& args, const serial_port& p, const device_description& desc, int i);
-void print_device(const args& args, const audio_device_info& d, const device_description& desc, int i);
 
 int main(int argc, char* argv[])
 {
@@ -906,7 +979,7 @@ void print_pretty(args& args, search_result& result)
         // Current formatting settings support audio device count of up to 999
         // and up to 999 serial ports before breaking formatting
 
-        int i = 1;
+        size_t i = 1;
         for (const auto& d : result.devices)
         {
             if (!args.verbose)
@@ -950,8 +1023,8 @@ void print_pretty(args& args, search_result& result)
                     fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.hw_path);
                     fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "depth");
                     fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.topology_depth);
-                    if ((i) < result.devices.size())
-                    fmt::println("");
+                    if (i < result.devices.size())
+                        fmt::println("");
              }
             }
             i++;
@@ -965,7 +1038,7 @@ void print_pretty(args& args, search_result& result)
             fmt::print(fmt::emphasis::bold, "\nFound serial ports:\n\n");
         }
 
-        int j = 1;
+        size_t j = 1;
         for (const auto& p : result.ports)
         {
             if (!args.verbose)
@@ -1024,54 +1097,6 @@ void print_pretty(args& args, search_result& result)
     }
 }
 
-std::string to_json(const search_result& result)
-{
-    std::string s;
-    s += "{\n";
-    s += "    \"audio_devices\": [\n";
-    int i = 0;
-    for (const auto& d : result.devices)
-    {
-        s += "        {\n";
-        s += to_json(d.first, false, 2);
-        s += ",\n";
-        s += to_json(d.second, false, 2);
-        s += "\n";
-        s += "        }";
-        if ((i + 1) < result.devices.size())
-        {
-            s.append(",");
-        }
-        s.append("\n");
-        i++;
-    }
-    
-    s += "    ],\n";
-    s += "    \"serial_ports\": [\n";    
-
-    int j = 0;
-    for (const auto& p : result.ports)
-    {
-        s += "        {\n";
-        s += to_json(p.first, false, 2);
-        s += ",\n";
-        s += to_json(p.second, false, 2);
-        s += "\n";
-        s += "        }";
-         if ((j + 1) < result.ports.size())
-        {
-            s.append(",");
-        }
-        s.append("\n");
-        j++;
-    }
-
-    s += "    ]\n";
-    s += "}";
-
-    return s;
-}
-
 int list_devices(args& args)
 {
     search_result result = search(args);
@@ -1097,4 +1122,3 @@ int list_devices(args& args)
 
     return 0;
 }
-

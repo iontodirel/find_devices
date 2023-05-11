@@ -1,5 +1,5 @@
 ﻿// find_devices.cpp
-// Alsa audio device finding utility.
+// Audio device and serial ports finding utility.
 //
 // MIT License
 //
@@ -25,29 +25,49 @@
 
 #include "find_devices.hpp"
 
-#include <locale>
 #include <functional>
 
 #include <alsa/asoundlib.h>
 #include <libudev.h>
 #include <fmt/format.h>
 
-//#include <libusb.h>
-//#include <libusb-1.0/libusb.h>
-// #include <iostream>
-// #include <iomanip>
-// #include <sstream>
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <libudev.h>
-//#include <fcntl.h>
-//#include <unistd.h>
-//#include <errno.h>
-//#include <sys/ioctl.h>
-//#include <linux/usbdevice_fs.h>
-//#include <linux/usbdevice_fs.h>
-//#include <linux/usb/ch9.h>
+// **************************************************************** //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+// UTILITIES                                                        //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+// **************************************************************** //
+
+void insert_tabs(std::string& s, int tabs, int tab_spaces = 4);
+
+void insert_tabs(std::string& s, int tabs, int tab_spaces)
+{
+    std::string padded(tabs * tab_spaces, ' ');
+
+    // Efficiency is not eally important here, but one 
+    // possible improvement is to use s.find('\n', pos)
+    // and insert the new lines in one go
+
+    std::string result;
+    std::istringstream iss(s);
+    std::string line;
+    while (std::getline(iss, line))
+    {
+       result += padded + line + "\n";
+    }
+
+    if (result.length() > 0)
+        result.erase(result.length() - 1);
+
+    s = result;
+}
 
 // **************************************************************** //
 //                                                                  //
@@ -63,7 +83,20 @@
 //                                                                  //
 // **************************************************************** //
 
-void insert_tabs(std::string& s, int tabs);
+audio_device_type operator|(const audio_device_type& l, const audio_device_type& r);
+audio_device_type operator&(const audio_device_type& l, const audio_device_type& r);
+bool enum_device_type_has_flag(const audio_device_type& deviceType, const audio_device_type& flag);
+std::string to_string(const audio_device_type& deviceType);
+std::string to_string(const audio_device_info& d);
+std::string to_json(const std::vector<audio_device_info>& devices);
+std::string to_json(const audio_device_info& d, bool wrapping_object, int tabs);
+std::vector<audio_device_info> get_audio_devices();
+std::vector<audio_device_info> get_audio_devices(int card_id);
+bool try_get_audio_device(int card_id, snd_ctl_t*& ctl_handle);
+bool try_get_audio_device(int card_id, int device_id, snd_ctl_t*& ctl_handle, snd_pcm_info_t*& pcm_info);
+bool try_get_audio_device(int card_id, int device_id, snd_ctl_t* ctl_handle, audio_device_info& device);
+bool can_use_audio_device(const audio_device_info& device, snd_pcm_stream_t mode);
+bool can_use_audio_device(const audio_device_info& device);
 
 audio_device_type operator|(const audio_device_type& l, const audio_device_type& r)
 {
@@ -102,41 +135,12 @@ std::string to_string(const audio_device_info& d)
         "', type: '" + to_string(d.type) + "'";
 }
 
-void insert_tabs(std::string& s, int tabs)
-{
-    std::string padded;
-    for (int i = 0; i < tabs; i++)
-    {
-        padded += "    ";
-    }
-    std::string result = padded;
-    for (char c : s)
-    {
-        if (c == '\n')
-        {
-            result += "\n" + padded;
-        }
-        else
-        {
-            result += c;
-        }
-    }
-    s = result;
-    /*
-    std::istringstream iss(str);
-    std::string line;
-    while (std::getline(iss, line)) {
-        std::cout << line << std::endl;
-    }
-    */
-}
-
 std::string to_json(const std::vector<audio_device_info>& devices)
 {
     std::string s;
     s.append("{\n");
     s.append("    \"devices\": [\n");
-    for (int i = 0; i < devices.size(); i++)
+    for (size_t i = 0; i < devices.size(); i++)
     {
         const audio_device_info& d = devices[i];
         s.append(to_json(d, 2));
@@ -173,19 +177,6 @@ std::string to_json(const audio_device_info& d, bool wrapping_object, int tabs)
     insert_tabs(s, tabs);
     return s;
 }
-
-struct audio_device_private_imp
-{
-    snd_ctl_t* ctl_handle;
-    snd_pcm_info_t* pcm_info;
-};
-
-std::vector<audio_device_info> get_audio_devices();
-std::vector<audio_device_info> get_audio_devices(int card_id);
-bool try_get_audio_device(int card_id, snd_ctl_t*& ctl_handle);
-bool try_get_audio_device(int card_id, int device_id, snd_ctl_t*& ctl_handle, snd_pcm_info_t*& pcm_info);
-bool try_get_audio_device(int card_id, int device_id, snd_ctl_t* ctl_handle, audio_device_info& device);
-bool can_use_audio_device(const audio_device_info& device, snd_pcm_stream_t mode);
 
 std::vector<audio_device_info> get_audio_devices()
 {
@@ -409,6 +400,9 @@ bool can_use_audio_device(const audio_device_info& device)
 //                                                                  //
 // **************************************************************** //
 
+std::vector<serial_port> get_serial_ports();
+std::string to_json(const serial_port& p, bool wrapping_object, int tabs);
+
 std::vector<serial_port> get_serial_ports()
 {
     std::vector<serial_port> ports;
@@ -534,15 +528,21 @@ std::string to_json(const serial_port& p, bool wrapping_object, int tabs)
 //                                                                  //
 // **************************************************************** //
 
-int get_topology_depth(udev_device* device);
-bool try_find_device(udev* udev, udev_enumerate* enumerate, udev_device*& device, udev_device*& usb_device);
-bool try_get_device_description(udev* udev, udev_enumerate* enumerate, udev_device*& device, udev_device*& usb_device, device_description& desc);
-bool try_get_device_description(std::function<void(udev_enumerate*)> filter, device_description& desc);
 bool try_get_device_description(const audio_device_info& d, device_description& desc);
 bool try_get_device_description(const serial_port& p, device_description& desc);
+bool try_get_device_description(std::function<void(udev_enumerate*)> filter, device_description& desc);
+bool try_get_device_description(udev* udev, udev_enumerate* enumerate, udev_device*& device, udev_device*& usb_device, device_description& desc);
+bool try_get_device_description(udev_device* device, udev_device*& usb_device, device_description& desc);
 void fetch_device_description(udev_device* device, udev_device* usb_device, device_description& desc);
+bool try_find_device(udev* udev, udev_enumerate* enumerate, udev_device*& device, udev_device*& usb_device);
 bool try_find_device(udev_device* device, udev_device*& usb_device);
+int get_topology_depth(udev_device* device);
+std::vector<device_description> get_sibling_audio_devices(const device_description& desc);
+std::vector<device_description> get_sibling_serial_ports(const device_description& desc);
 std::vector<device_description> get_sibling_devices(std::function<void(udev_enumerate*)> filter, const device_description& desc);
+std::vector<audio_device_info> get_audio_devices(const device_description& desc);
+bool try_get_serial_port(const device_description& desc, serial_port& port);
+std::string to_json(const device_description& d, bool wrapping_object, int tabs);
 
 bool try_get_device_description(const audio_device_info& d, device_description& desc)
 {
@@ -605,13 +605,24 @@ bool try_get_device_description(udev* udev, udev_enumerate* enumerate, udev_devi
     return true;
 }
 
+bool try_get_device_description(udev_device* device, udev_device*& usb_device, device_description& desc)
+{
+    if (!try_find_device(device, usb_device))
+    {
+        return false;
+    }
+
+    fetch_device_description(device, usb_device, desc);
+
+    return true;
+}
+
 void fetch_device_description(udev_device* device, udev_device* usb_device, device_description& desc)
 {
     const char* syspath = udev_device_get_syspath(device);
     const char* usb_syspath = udev_device_get_syspath(usb_device);
     const char* busnum = udev_device_get_sysattr_value(usb_device, "busnum");
     const char* devnum = udev_device_get_sysattr_value(usb_device, "devnum");
-    const char* dev_driver = udev_device_get_driver(usb_device);
     const char* dev_id_vendor = udev_device_get_sysattr_value(usb_device, "idVendor");
     const char* dev_id_product = udev_device_get_sysattr_value(usb_device, "idProduct");
     const char* dev_product = udev_device_get_sysattr_value(usb_device, "product");
@@ -635,18 +646,6 @@ void fetch_device_description(udev_device* device, udev_device* usb_device, devi
         desc.hw_path = usb_syspath;
 
     desc.topology_depth = get_topology_depth(usb_device);
-}
-
-bool try_get_device_description(udev_device* device, udev_device*& usb_device, device_description& desc)
-{
-    if (!try_find_device(device, usb_device))
-    {
-        return false;
-    }
-
-    fetch_device_description(device, usb_device, desc);
-
-    return true;
 }
 
 bool try_find_device(udev* udev, udev_enumerate* enumerate, udev_device*& device, udev_device*& usb_device)
@@ -880,4 +879,3 @@ std::string to_json(const device_description& d, bool wrapping_object, int tabs)
     insert_tabs(s, tabs);
     return s;
 }
-
