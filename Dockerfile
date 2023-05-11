@@ -12,4 +12,3 @@ RUN ./install_dependencies.sh
 
 RUN cmake .
 RUN make -j 4
-

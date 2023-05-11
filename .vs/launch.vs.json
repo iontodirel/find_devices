@@ -12,15 +12,9 @@
       "MIMode": "gdb",
       "args": [
         "--list",
-        // Example with Signalink:
-        // "--name",
-        // "USB AUDIO",
-        // "--desc",
-        // "Texas Instruments",
         "--type",
-        "'capture&playback'",
-        "--json",
-        "--no-verbose"
+        "'capture|playback'",
+        "-p"
       ],
       "env": {}
     }

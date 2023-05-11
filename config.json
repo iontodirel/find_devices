@@ -26,7 +26,7 @@
         "search_mode": "independent",
         "expected_count": "",
         "list_properties": "true",
-        "display_mode": "audio, ports",
+        "display_mode": "audio,ports",
         "use_json": "false",
-        "output_file": "file6.json"
+        "output_file": "output.json"
     }

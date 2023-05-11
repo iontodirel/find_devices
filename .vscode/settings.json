@@ -1,6 +1,10 @@
 {
     "cmake.debugConfig": {
         "args": [
+            "--list",
+            "--type",
+            "\"playback|capture\"",
+            "-p"
         ]
     },
     "files.associations": {
