@@ -6,6 +6,29 @@ Use this utility to search for audio devices and serial ports.
 
 The functionally of this utility is focused for ham radio use, to help with integration and automation with Direwolf.
 
+## Motivation
+
+- Easy and quick enumeration of audio devices and serial ports within one tool
+- Programmable support, with easy integration and no scripting and text processing required
+  - Do not need to parse and manipulate text from logs or output from aplay and arecord
+  - Output from the program can directly be consumed by other programs
+  - JSON output writing and printing for easy programmability, with tools like `jq`
+  - Project is well structured (subjectively) and hackable for future modifications
+- Correlation between audio devices and serial ports
+  - A big problem for hams is finding a serial port on the same USB hub as the USB sound card
+  - Easily find USB sound cards on the same hub as a USB serial port.  
+- Repeatable results, across system restarts, or when using generic sound cards with the same USB descriptors.
+  - A big problem for hams is using multiple sound cards that have the same USB descriptors
+  - This tool aims at reliably finding devices and addresing indovidually even if the USB descriptors are all the same
+- No system modifications requirements, like adding udev rules
+
+## Limitations
+
+- Only Linux is currently supported.
+- Only USB serial ports are currently supported.
+- Limited support for built in sound cards, like PCI based sound cards.
+- Requires a Linux kernel with udev support.
+
 ## Basic example usage
 
 ### Obtaining audio devices with Alsa
@@ -89,29 +112,11 @@ You can use `Visual Studio` or `VSCode` for remote Linux development.
 
 My setup include a Linux machine running Ubuntu 22.03 Desktop. I do the development in Windows in VSCode or Visual Studio.
 
+In VSCode have CMake Tools, Cpp Tools, and Remote - SSH tools installed. They provide the developer experience for editing, building and debugging.
+
 ### Github Actions
 
 A build action automatically builds the project code commits. This makes sure the project builds successfully and the build is well maintained.
-
-#### VSCode
-
-I have CMake Tools, Cpp Tools, and Remote - SSH tools installed. They provide the developer experience for editing, building and debugging.
-
-## Limitations
-
-- Only Linux is currently supported.
-- Only USB serial ports are currently supported.
-- Limited support for built in sound cards, like PCI based sound cards.
-- Requires a Linux kernel with udev support.
-
-## Motivation
-
-- Easy and quick enumeration of audio devices and serial ports
-- Programmable support, with easy integration and no scripting required
-  - Output from the program can directly be consumed by other programs
-- Correlation between audio devices and serial ports
-  - Easily find USB sound cards on the same hub as a USB serial port.
-- Repeatable results, across system restarts, or when using generic sound cards with the same USB descriptors.
 
 ## Help
 
