@@ -106,6 +106,8 @@ This project uses `libudev` and `libsound2` as development library dependencies,
 
 This project is using `CMake`, and has been tested with the GCC compiler.
 
+This project also utilizes the `fmt` and `nlohmann::json` libraries, which are automatically installed with the CMake build scripting.
+
 ### Development
 
 You can use `Visual Studio` or `VSCode` for remote Linux development.
