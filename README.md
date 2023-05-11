@@ -6,11 +6,6 @@ Use this utility to search for audio devices and serial ports.
 
 The functionally of this utility is focused for ham radio use, to help with integration and automation with Direwolf.
 
-## Table of contents
-
-- [Motivation](#motivation)
-- [Limitations](#limitations)
-
 ## Motivation
 
 - Easy and quick enumeration of audio devices and serial ports within one tool
@@ -26,6 +21,16 @@ The functionally of this utility is focused for ham radio use, to help with inte
   - A big problem for hams is using multiple sound cards that have the same USB descriptors
   - This tool aims at reliably finding devices and addresing indovidually even if the USB descriptors are all the same
 - No system modifications requirements, like adding udev rules
+
+## Table of contents
+
+- [Motivation](#motivation)
+- [Limitations](#limitations)
+- [Basic example usage](#basic-example-usage)
+  - [Obtaining audio devices with Alsa](#obtaining-audio-devices-with-alsa)
+  - [Obtaining audio devices with find_devices](#obtaining-audio-devices-with-find_devices)
+- [JSON parsing example with jq](#json-parsing-example-with-jq)
+- [Building](#building)
 
 ## Limitations
 
