@@ -173,6 +173,7 @@ struct args
     display_mode view_mode = display_mode::not_set;
     std::string config_file;
     bool ignore_config = false;
+    bool pretty_print = true;
 };
 
 struct search_result
@@ -677,6 +678,11 @@ args parse_command_line(int argc, char* argv[])
             args.ignore_config = true;
             args.command_line_args.push_back(std::make_pair(arg, ""));
         }
+        else if (arg == "--disable-colors")
+        {
+            args.pretty_print = false;
+            args.command_line_args.push_back(std::make_pair(arg, ""));
+        }
         else if (arg == "--config" && (i + 1) < argc)
         {
             args.config_file = argv[i + 1];
@@ -872,7 +878,7 @@ void read_settings(args& args)
 
 int main(int argc, char* argv[]);
 int print_usage();
-void print_pretty(args& args, search_result& result);
+void print(args& args, search_result& result);
 int list_devices(args& args);
 
 int main(int argc, char* argv[])
@@ -920,10 +926,10 @@ int print_usage()
         "    --device <number>        search criteria: device number, stable between restarts\n"
         "    --path <path>            search criteria: device system path\n"
         "    --topology <n>           search criteria: the depth of the device topology\n"
-        "    -v, --verbose            enable verbose printing from this utility\n"
+        "    -v, --verbose            enable verbose stdout printing from this utility\n"
         "    --no-verbose             machine parsable output\n"
         "    -h, --help               print help\n"
-        "    -l, --list               list devices\n"
+        "    -l, --list               list devices, implicit\n"
         "    -p, --properties         print detailed properties of each device\n"
         "    --print <type>           only applies to stdout, type of information to print:\n"
         "                             audio - print audio devices\n"
@@ -936,10 +942,11 @@ int print_usage()
         "    -c, --expected <count>   how many results to expect from a search\n"
         "                             devices of each type count as one, one serial port and one audio device count as one\n"
         "                             default value is one, if the result count does not match the count, return value will be 1\n"
-        "    --file <file>            write results to a file\n"
+        "    --file <file>            write results to a file, only applies to JSON output when used in conjunction with --json\n"
         "    --json                   display or write all information as JSON\n"
-        "    --ignore-config          ignore the configuration file\n"
-        "    --config    <file>       use a configuration file\n"
+        "    --ignore-config          ignore the configuration JSON file if present\n"
+        "    --config    <file>       use a configuration file, settings specified as command line args override the file config\n"
+        "    --disable-colors         do not print colors in stdout\n"
         "\n"
         "Returns:\n"
         "    0 - success, devices are found, and they are matching the search criteria\n"
@@ -967,13 +974,19 @@ int print_usage()
     return 1;
 }
 
-void print_pretty(args& args, search_result& result)
+template <typename... Args>
+void print(bool enable_colors, const fmt::text_style& ts, const Args&... args)
+{
+    fmt::print(enable_colors ? ts : fmt::text_style(), args...);
+}
+
+void print(args& args, search_result& result)
 {
     if (args.view_mode == display_mode::audio_and_ports || args.view_mode == display_mode::audio)
     {
         if (args.verbose)
         {
-            fmt::print(fmt::emphasis::bold, "\nFound audio devices:\n\n");
+            print(args.pretty_print, fmt::emphasis::bold, "\nFound audio devices:\n\n");
         }
 
         // Current formatting settings support audio device count of up to 999
@@ -986,46 +999,46 @@ void print_pretty(args& args, search_result& result)
                 printf("%s\n", d.first.plughw_id.c_str());
             else
             {
-                fmt::print(fmt::emphasis::bold, "{:>4})", i);
-                fmt::print(fmt::emphasis::bold | fg(fmt::color::chartreuse), " {:>9}", d.first.hw_id);
-                fmt::print(":  ");
-                fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::purple), "{}", d.first.name);
+                print(args.pretty_print, fmt::emphasis::bold, "{:>4})", i);
+                print(args.pretty_print, fmt::emphasis::bold | fg(fmt::color::chartreuse), " {}", d.first.hw_id);
+                fmt::print(": ");
+                print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::cornflower_blue), "{}", d.first.name);
                 fmt::print(" - ");
-                fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::chocolate), "{}", d.first.description);
+                print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::chocolate), "{}", d.first.description);
                 fmt::println("");
 
                 if (args.list_properties)
                 {
                     fmt::println("");
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "hwid");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.hw_id);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "plughwid");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.plughw_id);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "name");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.name);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "description");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.description);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "stream name");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.stream_name);                
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "bus");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.bus_number);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "device");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.device_number);                
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "product");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.product);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "idProduct");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.id_product);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "idVendor");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.id_vendor);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "path");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.path);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "hardware path");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.hw_path);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "depth");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.topology_depth);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "hwid");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.hw_id);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "plughwid");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.plughw_id);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "name");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.name);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "description");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.description);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "stream name");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.stream_name);                
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "bus");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.bus_number);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "device");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.device_number);                
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "product");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.product);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "idProduct");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.id_product);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "idVendor");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.id_vendor);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "path");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.path);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "hardware path");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.hw_path);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "depth");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.topology_depth);
                     if (i < result.devices.size())
                         fmt::println("");
-             }
+                }
             }
             i++;
         }
@@ -1035,7 +1048,7 @@ void print_pretty(args& args, search_result& result)
     {
         if (args.verbose)
         {
-            fmt::print(fmt::emphasis::bold, "\nFound serial ports:\n\n");
+            print(args.pretty_print, fmt::emphasis::bold, "\nFound serial ports:\n\n");
         }
 
         size_t j = 1;
@@ -1045,41 +1058,41 @@ void print_pretty(args& args, search_result& result)
                 printf("%s\n", p.first.name.c_str());
             else
             {
-                fmt::print(fmt::emphasis::bold, "{:>4})", j);
-                fmt::print(fmt::emphasis::bold | fg(fmt::color::chartreuse), "{:>15}", p.first.name);
-                fmt::print(":  ");
-                fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::purple), "{}", p.first.manufacturer);
+                print(args.pretty_print, fmt::emphasis::bold, "{:>4})", j);
+                print(args.pretty_print, fmt::emphasis::bold | fg(fmt::color::chartreuse), " {}", p.first.name);
+                fmt::print(": ");
+                print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::cornflower_blue), "{}", p.first.manufacturer);
                 fmt::print(" - ");
-                fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::chocolate), "{}", p.first.description);
+                print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::chocolate), "{}", p.first.description);
                 fmt::println("");
     
                 if (args.list_properties)
                 {
                     fmt::println("");
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "name");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.name);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "manufacturer");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.manufacturer);                
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "description");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.description);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "sn");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.device_serial_number);                
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "bus");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.bus_number);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "device");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.device_number);                
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "product");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.product);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "idProduct");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.id_product);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "idVendor");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.id_vendor);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "path");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.path);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "hardware path");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.hw_path);
-                    fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "depth");
-                    fmt::print(fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.topology_depth);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "name");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.name);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "manufacturer");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.manufacturer);                
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "description");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.description);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "sn");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.device_serial_number);                
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "bus");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.bus_number);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "device");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.device_number);                
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "product");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.product);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "idProduct");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.id_product);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "idVendor");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.id_vendor);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "path");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.path);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "hardware path");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.hw_path);
+                    print(args.pretty_print, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "depth");
+                    print(args.pretty_print, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.topology_depth);
                     if (j < result.ports.size())
                         fmt::println("");
                 }
@@ -1092,8 +1105,8 @@ void print_pretty(args& args, search_result& result)
 
     if (args.verbose && args.print_to_file)
     {
-        fmt::print(fmt::emphasis::bold, "Wrote to file: ");
-        fmt::print(fg(fmt::color::red), "{}\n\n", args.file);
+        print(args.pretty_print, fmt::emphasis::bold, "Wrote to file: ");
+        print(args.pretty_print, fg(fmt::color::red), "{}\n\n", args.file);
     }
 }
 
@@ -1109,7 +1122,7 @@ int list_devices(args& args)
     }
     else
     {
-        print_pretty(args, result);
+        print(args, result);
     }
 
     if (args.print_to_file)
