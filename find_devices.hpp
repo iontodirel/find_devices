@@ -29,10 +29,7 @@
 #include <string>
 #include <locale>
 #include <memory>
-
 #include <sstream>
-
-
 
 // **************************************************************** //
 //                                                                  //
@@ -42,22 +39,6 @@
 
 namespace
 {
-    // template<class F, class ...Args>
-    // std::string format(F f, Args... args)
-    // {
-    //     int size_s = snprintf(nullptr, 0, f, args...) + 1;
-    //     auto size = static_cast<size_t>(size_s);
-    //     if (size > 0)
-    //     {
-    //         char* buf = (char*)alloca(size);
-    //         if (snprintf(buf, size, f, args ...) > 0)
-    //         {
-    //             return std::string(buf, buf + size - 1);
-    //         }
-    //     }
-    //     return "";
-    // }
-
     bool try_parse_number(std::string str, int& number)
     {
         if (str.size() == 0)
@@ -69,20 +50,6 @@ namespace
         if (result)
             number = maybe_number;
         return result;
-
-        // if (str.size() == 0)
-        //     return false;
-        // char* end_pos;
-        // long maybe_number = std::strtol(str.c_str(), &end_pos, 10);
-        // if (*end_pos == 0)
-        // {
-        //     number = maybe_number;
-        //     return true;
-        // }
-      
-        // //return !iss.fail() && iss.eof();
-
-        // return false;
     }
 
     std::string to_lower(const std::string& str)
@@ -116,8 +83,6 @@ bool enum_device_type_has_flag(const audio_device_type& deviceType, const audio_
 
 std::string to_string(const audio_device_type& deviceType);
 
-struct audio_device_private_imp;
-
 struct audio_device_info
 {
     std::string hw_id;
@@ -128,11 +93,6 @@ struct audio_device_info
     std::string stream_name;
     std::string description;
     audio_device_type type = audio_device_type::uknown;
-    //snd_ctl_t* ctl_handle;
-    //snd_pcm_info_t* pcm_info;
-
-//private:
-    //std::unique_ptr<audio_device_private_imp> impl;
 };
 
 std::vector<audio_device_info> get_audio_devices();
@@ -193,4 +153,3 @@ std::vector<audio_device_info> get_audio_devices(const device_description& desc)
 bool try_get_serial_port(const device_description& desc, serial_port& p);
 
 std::string to_json(const device_description& d, bool wrapping_object = true, int tabs = 0);
-

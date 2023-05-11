@@ -26,22 +26,17 @@
 #include "find_devices.hpp"
 
 #include <locale>
+#include <functional>
 
 #include <alsa/asoundlib.h>
 #include <libudev.h>
-//#include <libusb.h>
-//#include <libusb-1.0/libusb.h>
-
-#include <functional>
-
 #include <fmt/format.h>
 
+//#include <libusb.h>
+//#include <libusb-1.0/libusb.h>
 // #include <iostream>
 // #include <iomanip>
 // #include <sstream>
-
-
-
 //#include <stdio.h>
 //#include <stdlib.h>
 //#include <string.h>
@@ -212,7 +207,7 @@ std::vector<audio_device_info> get_audio_devices()
         if (err != 0 || card_id < 0)
             break;
         std::vector<audio_device_info> devices_for_card = get_audio_devices(card_id);
-        devices.insert(devices.end(), devices_for_card.begin(), devices_for_card.end());        
+        devices.insert(devices.end(), devices_for_card.begin(), devices_for_card.end());
     }
 
     return devices;
@@ -356,6 +351,7 @@ bool can_use_audio_device(const audio_device_info& device, snd_pcm_stream_t mode
     snd_pcm_t *handle;
 
     int err = snd_pcm_open(&handle, device.hw_id.c_str(), mode, SND_PCM_NONBLOCK);
+
     if (err < 0)
     {
         if (err == -EBUSY)
@@ -871,7 +867,7 @@ std::string to_json(const device_description& d, bool wrapping_object, int tabs)
     s.append("    \"device_number\": \"" + std::to_string(d.device_number) + "\",\n");
     s.append("    \"id_product\": \"" + d.id_product + "\",\n");
     s.append("    \"id_vendor\": \"" + d.id_vendor + "\",\n");
-    s.append("    \"manufacturer\": \"" + d.manufacturer + "\",\n");
+    s.append("    \"device_manufacturer\": \"" + d.manufacturer + "\",\n");
     s.append("    \"path\": \"" + d.path + "\",\n");
     s.append("    \"hw_path\": \"" + d.hw_path + "\",\n");
     s.append("    \"product\": \"" + d.product + "\",\n");

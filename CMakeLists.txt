@@ -68,7 +68,7 @@ if(GIT_FOUND)
     )
 endif()
 
-message(STATUS "Git hash is ${GIT_HASH}")
+message(STATUS "Git hash: ${GIT_HASH}")
 
 target_compile_definitions(find_devices PRIVATE GIT_HASH=${GIT_HASH})
 

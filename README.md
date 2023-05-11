@@ -4,11 +4,11 @@ Audio device and serial ports search utility.
 
 Use this utility to search for audio devices and serial ports.
 
-Functionally focused on ham radio use, and integration with Direwolf.
+The functionally of this utility is focused for ham radio use, to help with integration and automation with Direwolf.
 
 ## Basic example usage
 
-### Comparison with Alsa
+### Obtaining audio devices with Alsa
 
 To retrieve Alsa capture and playback devices:
 
@@ -24,34 +24,41 @@ card 1: CODEC [USB AUDIO  CODEC], device 0: USB Audio [USB Audio]\
 &nbsp;&nbsp;Subdevices: 0/1\
 &nbsp;&nbsp;Subdevice #0: subdevice #0
 
-### find_devices example of a playback and record device, by name and description
+### Obtaining audio devices with find_devices
 
-`./find_devices --name "USB Audio" --desc "Texas Instruments" --type 'capture&playback' --json --no-verbose`\
+To retrieve audio capture and playback devices in JSON format:
+
+`./find_devices --type 'capture&playback' --json`\
 {\
-&nbsp;&nbsp;&nbsp;&nbsp;"devices": [ \
+&nbsp;&nbsp;&nbsp;&nbsp;"audio_devices": [ \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"card_id": 1, \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"device_id": 0, \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"plughw_id": "plughw:1,0",  \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"hw_id": "hw:1,0",  \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"name": "USB AUDIO  CODEC",  \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"description": "BurrBrown from Texas Instruments USB AUDIO  CODEC at usb-0000:01:00.0-1.1, full", \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": "capture|playback" \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"name": "USB Audio Device",  \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"description": "C-Media Electronics Inc. USB Audio Device at usb-0000:00:14.0-6", \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": "capture&playback" \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"bus_number": "1"\
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"device_number": "10",\
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"id_product": "0014",\
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"id_vendor": "0d8c",\
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"manufacturer": "C-Media Electronics Inc.",\
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"path": "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-6/1-6:1.0/sound/card1",\
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"hw_path": "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-6",\
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"product": "USB Audio Device",\
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"topology_depth": "2"\
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} \
 &nbsp;&nbsp;&nbsp;&nbsp;] \
 }
 
-### Example for finding a Digirig
-
-`./find_devices --audio-begin --desc "C-Media" --audio-end --port-begin --desc "CP2102N" --port-end --search-mode port-siblings --json`
-
-### JSON parsing example with jq
+## JSON parsing example with jq
 
 Install `jq`.
 
 Run `find_devices`:
 
-`./find_devices --name "USB Audio" --desc "Texas Instruments" --type 'capture&playback' --json --no-verbose | jq -r ".devices[0].plughw_id" ` \
+`./find_devices --name "USB Audio" --desc "Texas Instruments" --type 'capture&playback' --json | jq -r ".devices[0].plughw_id" ` \
 plughw:1,0
 
 ## Building
@@ -99,9 +106,8 @@ I have CMake Tools, Cpp Tools, and Remote - SSH tools installed. They provide th
 - Programmable support, with easy integration and no scripting required
   - Output from the program can directly be consumed by other programs
 - Correlation between audio devices and serial ports
-- Repeatable results, across system restarts, or when using generic sound cards.
-- Easily find USB sound cards on the same hub as a USB serial port.
-
+  - Easily find USB sound cards on the same hub as a USB serial port.
+- Repeatable results, across system restarts, or when using generic sound cards with the same USB descriptors.
 
 ## Help
 
@@ -128,10 +134,12 @@ Example:\
 &nbsp;&nbsp;&nbsp;&nbsp;find_devices --help\
 &nbsp;&nbsp;&nbsp;&nbsp;find_devices --list --json --file out.json
 
-## Examples
+## Practical Examples
 
 ### Signalink
 ### Digirig
+### Sabrent USB sound adapter
+### FTDI USB to TTL cable
 
 ## Strategies for finding audio devices and serial ports 
 

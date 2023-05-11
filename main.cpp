@@ -460,8 +460,6 @@ search_mode parse_from_string(const std::string& mode)
 //                                                                  //
 // **************************************************************** //
 
-std::string get_full_path(std::string path);
-
 void read_settings(args& args);
 args parse_command_line(int argc, char* argv[]);
 void parse_audio_device_type(const std::string& typeStr, args& args);
@@ -754,24 +752,41 @@ void read_settings(args& args)
         if (search_criteria.contains("audio"))
         {
             nlohmann::json audio_match = search_criteria["audio"];
-            args.audio_filter.device_name_filter = audio_match.value("name", "");
-            args.audio_filter.device_desc_filter = audio_match.value("desc", "");            
-            parse_audio_device_type(audio_match.value("type", ""), args);
-            try_parse_number(audio_match.value("bus", ""), args.audio_filter.bus);
-            try_parse_number(audio_match.value("device", ""), args.audio_filter.device);
-            try_parse_number(audio_match.value("topology_depth", ""), args.audio_filter.topology);
-            args.audio_filter.path = audio_match.value("path", "");
+            if (args.audio_filter.device_name_filter.size() == 0)
+                args.audio_filter.device_name_filter = audio_match.value("name", "");
+            if (args.audio_filter.device_desc_filter.size() == 0)
+                args.audio_filter.device_desc_filter = audio_match.value("desc", "");
+            if (!args.audio_filter.playback_or_capture && 
+                !args.audio_filter.playback_only && 
+                !args.audio_filter.capture_only && 
+                !args.audio_filter.playback_and_capture)
+                parse_audio_device_type(audio_match.value("type", ""), args);
+            if (args.audio_filter.bus == -1)
+                try_parse_number(audio_match.value("bus", ""), args.audio_filter.bus);
+            if (args.audio_filter.device == -1)
+                try_parse_number(audio_match.value("device", ""), args.audio_filter.device);
+            if (args.audio_filter.topology == -1)
+                try_parse_number(audio_match.value("topology_depth", ""), args.audio_filter.topology);
+            if (args.audio_filter.path.size() == 0)
+                args.audio_filter.path = audio_match.value("path", "");
         }
         if (search_criteria.contains("port"))
         {
             nlohmann::json port_match = search_criteria["port"];
-            args.port_filter.name_filter = port_match.value("name", "");
-            args.port_filter.description_filter = port_match.value("desc", "");            
-            try_parse_number(port_match.value("bus", ""), args.port_filter.bus);
-            try_parse_number(port_match.value("device", ""), args.port_filter.device);
-            try_parse_number(port_match.value("topology_depth", ""), args.port_filter.topology);
-            args.port_filter.path = port_match.value("path", "");
-            args.port_filter.device_serial_number = port_match.value("serial", "");
+            if (args.port_filter.name_filter.size() == 0)
+                args.port_filter.name_filter = port_match.value("name", "");
+            if (args.port_filter.description_filter.size() == 0)
+                args.port_filter.description_filter = port_match.value("desc", "");     
+            if (args.port_filter.bus == -1)
+                try_parse_number(port_match.value("bus", ""), args.port_filter.bus);
+            if (args.port_filter.device == -1)
+                try_parse_number(port_match.value("device", ""), args.port_filter.device);
+            if (args.port_filter.topology == -1)
+                try_parse_number(port_match.value("topology_depth", ""), args.port_filter.topology);
+            if (args.port_filter.path.size() == 0)
+                args.port_filter.path = port_match.value("path", "");
+            if (args.port_filter.device_serial_number.size() == 0)
+                args.port_filter.device_serial_number = port_match.value("serial", "");
         }
     }
 }
@@ -842,11 +857,11 @@ int print_usage()
         "                             ports - print serial ports\n"
         "                             \"audio, ports\" - print audio devices and serial ports\n"
         "    --search-mode <mode>     the mode in which to conduct the search: \n"
-        "                             independent - look for audio devices and ports based independently\n"
-        "                             audio-siblings - look for audio devices and find their sibling ports\n"
-        "                             port-siblings - look for ports and find their sibling audio devices\n"
+        "                             independent - look for audio devices and ports independently\n"
+        "                             audio-siblings - look for audio devices and find their sibling serial ports\n"
+        "                             port-siblings - look for serial ports and find their sibling audio devices\n"
         "    -c, --expected <count>   how many results to expect from a search\n"
-        "                             devices of each type count as one, one serial port and one audio device is one\n"
+        "                             devices of each type count as one, one serial port and one audio device count as one\n"
         "                             default value is one, if the result count does not match the count, return value will be 1\n"
         "    --file <file>            write results to a file\n"
         "    --json                   display or write all information as JSON\n"
@@ -862,13 +877,18 @@ int print_usage()
         "Example:\n"
         "    find_devices --name \"USB Audio\" --desc \"Texas Instruments\" --no-verbose\n"
         "    find_devices --desc \"C-Media Electronics Inc.\" --search-mode audio-siblings --print \"audio, ports\" \n"
-        "    find_devices --audio-begin --desc \"C-Media Electronics Inc.\" --audio-end --port-begin --desc \"CP2102N USB to UART Bridge Controller\" --port-end --search-mode audio-siblings --print \"audio, ports\" \n"
+        "    find_devices --audio-begin --desc \"C-Media\" --audio-end --port-begin --desc \"CP2102N\" --port-end --search-mode port-siblings --print \"audio, ports\" \n"
         "    find_devices --audio-begin --bus 2 --device 48 --audio-end --search-mode audio-siblings --print \"audio, ports\" \n"
         "    find_devices --list\n"
         "    find_devices --list --type \"playback|capture\"\n"
         "    find_devices --help\n"
         "    find_devices --list --json --file out.json\n"
         "    find_devices --config config.json\n"
+        "\n"
+        "Defaults:\n"
+        "    --verbose\n"
+        "    --type \"playback|capture\"\n"
+        "    --print audio\n"
         "\n";
     printf("%s", usage.c_str());
     return 1;
@@ -883,6 +903,9 @@ void print_pretty(args& args, search_result& result)
             fmt::print(fmt::emphasis::bold, "\nFound audio devices:\n\n");
         }
 
+        // Current formatting settings support audio device count of up to 999
+        // and up to 999 serial ports before breaking formatting
+
         int i = 1;
         for (const auto& d : result.devices)
         {
@@ -890,12 +913,12 @@ void print_pretty(args& args, search_result& result)
                 printf("%s\n", d.first.plughw_id.c_str());
             else
             {
-                fmt::print(fmt::emphasis::bold, "{:>3})", i);
-                fmt::print(fmt::emphasis::bold | fg(fmt::color::chartreuse), "{:>8}", d.first.hw_id.c_str());
+                fmt::print(fmt::emphasis::bold, "{:>4})", i);
+                fmt::print(fmt::emphasis::bold | fg(fmt::color::chartreuse), " {:>9}", d.first.hw_id);
                 fmt::print(":  ");
-                fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::purple), "{}", d.first.name.c_str());
+                fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::purple), "{}", d.first.name);
                 fmt::print(" - ");
-                fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::chocolate), "{}", d.first.description.c_str());
+                fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::chocolate), "{}", d.first.description);
                 fmt::println("");
 
                 if (args.list_properties)
@@ -949,7 +972,7 @@ void print_pretty(args& args, search_result& result)
                 printf("%s\n", p.first.name.c_str());
             else
             {
-                fmt::print(fmt::emphasis::bold, "{:>3})", j);
+                fmt::print(fmt::emphasis::bold, "{:>4})", j);
                 fmt::print(fmt::emphasis::bold | fg(fmt::color::chartreuse), "{:>15}", p.first.name);
                 fmt::print(":  ");
                 fmt::print(fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::purple), "{}", p.first.manufacturer);
