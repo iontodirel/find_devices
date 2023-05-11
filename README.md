@@ -39,6 +39,8 @@ The functionally of this utility is focused for ham radio use, to help with inte
   - [Dependencies](#dependencies)
   - [Dependencies](#development)
   - [Github Actions](#github-actions)
+- [Practical Examples](#practical-examples)
+- [Strategies for finding audio devices and serial ports](#strategies-for-finding-audio-devices-and-serial-ports)
 
 ## Limitations
 
