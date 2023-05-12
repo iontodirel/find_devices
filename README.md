@@ -37,8 +37,9 @@ The functionally of this utility is focused for ham radio use, to help with inte
 - [JSON parsing example with jq](#json-parsing-example-with-jq)
 - [Building](#building)
   - [Dependencies](#dependencies)
-  - [Dependencies](#development)
+  - [Development](#development)
   - [Github Actions](#github-actions)
+  - [Container](#container)
 - [Practical Examples](#practical-examples)
 - [Strategies for finding audio devices and serial ports](#strategies-for-finding-audio-devices-and-serial-ports)
 
@@ -149,6 +150,14 @@ In VSCode have CMake Tools, Cpp Tools, and Remote - SSH tools installed. They pr
 ### Github Actions
 
 A build action automatically builds the project code commits. This makes sure the project builds successfully and the build is well maintained.
+
+### Container
+
+A Docker file is provided which builds `find_devices`.
+
+You can build the container using docker `build -t find_devices .`
+
+You can inspect into the container using `docker container run --interactive --tty --entrypoint /bin/sh find_devices`
 
 ## Help
 
