@@ -1,0 +1,39 @@
+{
+    "audio_devices": [
+        {
+            "card_id": "2",
+            "device_id": "0",
+            "plughw_id": "plughw:2,0",
+            "hw_id": "hw:2,0",
+            "name": "USB PnP Sound Device",
+            "description": "C-Media Electronics Inc. USB PnP Sound Device at usb-0000:00:14.0-4.1, full spe",
+            "type": "capture&playback",
+            "bus_number": "1",
+            "device_number": "27",
+            "id_product": "013c",
+            "id_vendor": "0d8c",
+            "device_manufacturer": "C-Media Electronics Inc.      ",
+            "path": "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-4/1-4.1/1-4.1:1.0/sound/card2",
+            "hw_path": "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-4/1-4.1",
+            "product": "USB PnP Sound Device",
+            "topology_depth": "3"
+        }
+    ],
+    "serial_ports": [
+        {
+            "name": "/dev/ttyUSB1",
+            "description": "CP2102N USB to UART Bridge Controller",
+            "manufacturer": "Silicon Labs",
+            "device_serial_number": "e804c4c07cc3ec119e57a4f2d297222e",
+            "bus_number": "1",
+            "device_number": "28",
+            "id_product": "ea60",
+            "id_vendor": "10c4",
+            "device_manufacturer": "Silicon Labs",
+            "path": "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-4/1-4.2/1-4.2:1.0/ttyUSB1/tty/ttyUSB1",
+            "hw_path": "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-4/1-4.2",
+            "product": "CP2102N USB to UART Bridge Controller",
+            "topology_depth": "3"
+        }
+    ]
+}

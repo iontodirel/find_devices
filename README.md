@@ -30,6 +30,8 @@ The functionally of this utility is focused for ham radio use, to help with inte
 - [Limitations](#limitations)
 - [Basic example usage](#basic-example-usage)
   - [Retrieving audio capture and playback devices in JSON format](#retrieving-audio-capture-and-playback-devices-in-json-format)
+  - [Print sound cards and serial ports to stdout](#print-sound-cards-and-serial-ports-to-stdout-find_devices)
+  - [Print detailed information about each device](#print-detailed-information-about-each-device-find_devices--p)
 - [JSON parsing example with jq](#json-parsing-example-with-jq)
 - [Building](#building)
   - [Dependencies](#dependencies)
@@ -90,7 +92,7 @@ Run `./find_devices -j | jq -r ".audio_devices[0].plughw_id" `
 
 The program will print `plughw:1,0`
 
-For a more complex scripting example look at `find_devices_scripting.sh`
+For a more complex scripting example look at `examples/find_devices_scripting_example.sh`
 
 ## Building
 
@@ -135,6 +137,13 @@ A Docker file is provided which builds `find_devices`.
 You can build the container using `docker build -t find_devices .`
 
 You can inspect into the container using `docker container run --interactive --tty --entrypoint /bin/sh find_devices`
+
+To copy the executable built in the container from the container:
+
+~~~~
+docker run --name find_devices find_devices
+docker cp find_devices:/find_devices/find_devices .
+~~~~
 
 ## Strategies for finding devices
 

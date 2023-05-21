@@ -169,23 +169,6 @@ enum class included_devices
     all
 };
 
-struct command_line_arg
-{
-    std::string name;
-    std::string value;
-    std::string property;
-
-    command_line_arg() = default;
-    command_line_arg(const command_line_arg&) = default;
-
-    command_line_arg(const std::string& n, const std::string& v, const std::string& p)
-    {
-        name = n;
-        value = v;
-        property = p;
-    }
-};
-
 struct args
 {
     std::multimap<std::string, std::string> command_line_args;
@@ -203,6 +186,9 @@ struct args
     std::string config_file = "config.json";
     bool ignore_config = false;
     bool disable_colors = false;
+    bool no_stdout = false;
+    bool command_line_has_errors = false;
+    bool show_version = false;
 };
 
 struct search_result
@@ -603,6 +589,7 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         ("v,version", "")
         ("verbose", "", cxxopts::value<bool>()->default_value("true"))
         ("no-verbose", "")
+        ("no-stdout", "")
         ("h,help", "");
 
     cxxopts::ParseResult result;
@@ -614,12 +601,14 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
     catch (const cxxopts::exceptions::incorrect_argument_type& e)
     {
         printf("Error parsing command line: %s\n\n", e.what());
+        args.command_line_has_errors = true;
         print_usage();        
         return false;
     }
     catch (const std::exception& e)
     {
         printf("Error parsing command line.");
+        args.command_line_has_errors = true;
         print_usage();
         return false;
     }    
@@ -628,6 +617,7 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
     if (unmatched.size() > 0)
     {
         fmt::print(fg(fmt::color::red), "Unknown command line argument: \"{}\"\n\n", unmatched[0]);
+        args.command_line_has_errors = true;
         print_usage();
         return false;
     }
@@ -640,6 +630,7 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
 
     if (result.count("version") > 0)
     {
+        args.show_version = true;
         printf(
             "find_devices - audio device and serial ports finding utility\n"        
             #ifdef GIT_HASH
@@ -660,6 +651,11 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
     args.search_mode = parse_search_mode(result["search-mode"].as<std::string>());
     args.included_devices = parse_included_devices(result["included-devices"].as<std::string>());
     args.verbose = result["verbose"].as<bool>();
+
+    if (result.count("no-stdout") > 0)
+    {
+        args.no_stdout = true;
+    }
 
     if (result.count("no-verbose") > 0)
     {
@@ -947,6 +943,7 @@ int main(int argc, char* argv[])
     if (args.help)
     {
         print_usage();
+        return 1;
     }
 
     read_settings(args);
@@ -990,6 +987,7 @@ int print_usage()
         "    --port.serial <serial>         search filter: partial or complete serial port device serial number\n"        
         "    -v, --verbose                  enable detailed printing to stdout\n"
         "    --no-verbose                   disable detailed printing to stdout\n"
+        "    --no-stdout                    don't print to stdout\n"
         "    -h, --help                     print help\n"
         "    -v, --version                  prints the version of this program\n"
         "    -p, --list-properties          print detailed properties for each device and serial port\n"
@@ -1047,6 +1045,11 @@ void print(bool enable_colors, const fmt::text_style& ts, const Args&... args)
 
 void print(args& args, search_result& result)
 {
+    if (args.no_stdout)
+    {
+        return;
+    }
+
     if (args.included_devices == included_devices::all || args.included_devices == included_devices::audio)
     {
         if (args.verbose)
@@ -1060,7 +1063,7 @@ void print(args& args, search_result& result)
         size_t i = 1;
         for (const auto& d : result.devices)
         {
-            if (!args.verbose)
+            if (!args.verbose )
                 printf("%s\n", d.first.plughw_id.c_str());
             else
             {
@@ -1186,7 +1189,7 @@ void print_to_file(const args& args, const std::string& json)
 
     write_line_to_file(file_name, json);
 
-    if (args.verbose && !args.use_json)
+    if (args.verbose && !args.use_json && !args.no_stdout)
     {
         print(!args.disable_colors, fmt::emphasis::bold, "Wrote to file: ");
         print(!args.disable_colors, fg(fmt::color::red), "{}\n\n", file_name);
@@ -1199,7 +1202,7 @@ int list_devices(args& args)
 
     std::string json_output = to_json(result);
 
-    if (args.use_json)
+    if (args.use_json && !args.no_stdout)
     {
         printf("%s\n", json_output.c_str());
     }
