@@ -29,8 +29,7 @@ The functionally of this utility is focused for ham radio use, to help with inte
 - [Motivation](#motivation)
 - [Limitations](#limitations)
 - [Basic example usage](#basic-example-usage)
-  - [Obtaining audio devices with Alsa](#obtaining-audio-devices-with-alsa)
-  - [Obtaining audio devices with find_devices](#obtaining-audio-devices-with-find_devices)
+  - [Retrieving audio capture and playback devices in JSON format](#retrieving-audio-capture-and-playback-devices-in-json-format)
 - [JSON parsing example with jq](#json-parsing-example-with-jq)
 - [Building](#building)
   - [Dependencies](#dependencies)
@@ -38,7 +37,7 @@ The functionally of this utility is focused for ham radio use, to help with inte
   - [Github Actions](#github-actions)
   - [Container](#container)
 - [Practical Examples](#practical-examples)
-- [Strategies for finding audio devices and serial ports](#strategies-for-finding-audio-devices-and-serial-ports)
+- [Strategies for finding devices](#strategies-for-finding-devices)
 
 ## Limitations
 
@@ -75,11 +74,11 @@ The functionally of this utility is focused for ham radio use, to help with inte
 &nbsp;&nbsp;&nbsp;&nbsp;] \
 }
 
-### To print sound cards and serial ports to stdout: `./find_devices`
+### Print sound cards and serial ports to stdout: `./find_devices`
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/36f088c3-a332-4329-aaff-eeb28c45b7ee)
 
-### To print detailed information about each device, add the `-p` argument: `./find_devices -p`
+### Print detailed information about each device: `./find_devices -p`
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/7c017b89-581f-465d-89ef-8966e4a327f9)
 
@@ -109,10 +108,6 @@ cmake ..
 make
 ~~~~
 
-### Docker
-
-A Docker container is provided, which can also be used as a self-contained build.
-
 ### Dependencies
 
 This project uses `libudev` and `libsound2` as development library dependencies, which need to be installed with your system package manager.
@@ -137,7 +132,7 @@ A build action automatically builds the project code commits. This makes sure th
 
 A Docker file is provided which builds `find_devices`.
 
-You can build the container using docker `build -t find_devices .`
+You can build the container using `docker build -t find_devices .`
 
 You can inspect into the container using `docker container run --interactive --tty --entrypoint /bin/sh find_devices`
 
