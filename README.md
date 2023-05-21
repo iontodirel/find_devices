@@ -141,7 +141,7 @@ You can build the container using docker `build -t find_devices .`
 
 You can inspect into the container using `docker container run --interactive --tty --entrypoint /bin/sh find_devices`
 
-## Help
+## Strategies for finding devices
 
 Always use device properties that are unique and uniquely identify your device. Device `names` and `descriptions` are reliable ways to find devices, but they fall apart for example for sound cards, if you have more than one of the same sound card attached to your system. This is because the USB CODECs powering these sound cards have  identical USB descriptors. If you have two Digirig for example, you cannot use their name or description to find the one you want.
 
