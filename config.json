@@ -24,9 +24,8 @@
             }
         },
         "search_mode": "independent",
-        "expected_count": "",
-        "list_properties": "true",
-        "display_mode": "audio,ports",
+        "list_properties": "false",
+        "included_devices": "all",
         "use_json": "false",
         "output_file": "output.json"
     }

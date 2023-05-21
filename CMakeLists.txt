@@ -34,10 +34,25 @@ endif()
 include(FetchContent)
 
 FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
-FetchContent_MakeAvailable(json)
+FetchContent_GetProperties(json)
+if(NOT json_POPULATED)
+  FetchContent_Populate(json)
+  add_subdirectory(${json_SOURCE_DIR} ${json_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
 
 FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG master)
-FetchContent_MakeAvailable(fmt)
+FetchContent_GetProperties(fmt)
+if(NOT fmt_POPULATED)
+  FetchContent_Populate(fmt)
+  add_subdirectory(${fmt_SOURCE_DIR} ${fmt_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
+
+FetchContent_Declare(cxxopts GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git GIT_TAG v3.1.1)
+FetchContent_GetProperties(cxxopts)
+if(NOT cxxopts_POPULATED)
+  FetchContent_Populate(cxxopts)
+  add_subdirectory(${cxxopts_SOURCE_DIR} ${cxxopts_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
 
 add_executable (find_devices "find_devices.cpp" "find_devices.hpp" "main.cpp")
 
@@ -63,8 +78,12 @@ endif()
 message(STATUS "Git hash: ${GIT_HASH}")
 
 target_compile_definitions(find_devices PRIVATE GIT_HASH=${GIT_HASH})
-target_compile_options(find_devices PRIVATE -v -Wall -Wextra -Wpedantic -Werror)
-target_link_libraries(find_devices PUBLIC asound udev nlohmann_json::nlohmann_json fmt::fmt)
+#target_compile_options(find_devices PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_link_libraries(find_devices PRIVATE asound udev nlohmann_json::nlohmann_json fmt::fmt cxxopts)
 
 configure_file("${PROJECT_SOURCE_DIR}/config.json" "${PROJECT_BINARY_DIR}/config.json")
 configure_file("${PROJECT_SOURCE_DIR}/config_schema.json" "${PROJECT_BINARY_DIR}/config_schema.json")
+
+install(FILES ${PROJECT_BINARY_DIR}/find_devices PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
+install(FILES ${PROJECT_BINARY_DIR}/config.json PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
+install(FILES ${PROJECT_BINARY_DIR}/config_schema.json PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)

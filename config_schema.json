@@ -31,7 +31,7 @@
               "type": {
                 "type": "string",
                 "oneOf": [
-                  {"enum": ["playback", "capture", "playback|capture", "playback&capture"]}
+                  {"enum": ["playback", "capture", "playback|capture", "playback&capture", "all"]}
               ]
               }
             }
@@ -76,11 +76,11 @@
         "format": "integer",
         "description": "How many results to expect. Integer."
       },
-      "display_mode": {
+      "included_devices": {
         "type": "string",
         "description": "Type of information to print, can be: audio, ports, or both. Separate by comma if both.",
         "oneOf": [
-            {"enum": ["audio", "ports", "audio, ports", "audio,ports", "ports, audio", "ports,audio"]}
+            {"enum": ["audio", "ports", "all"]}
         ]
       },
       "use_json": {

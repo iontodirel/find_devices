@@ -1,10 +1,6 @@
 {
     "cmake.debugConfig": {
         "args": [
-            "--list",
-            "--type",
-            "\"playback|capture\"",
-            "-p"
         ]
     },
     "files.associations": {
@@ -76,6 +72,10 @@
         "thread": "cpp",
         "cinttypes": "cpp",
         "typeindex": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "bitset": "cpp",
+        "unordered_set": "cpp",
+        "regex": "cpp",
+        "format": "cpp"
     }
 }

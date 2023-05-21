@@ -1,31 +1,28 @@
  # find_devices
 
-Audio device and serial ports search utility.
+Audio device and serial ports search utility. Use this utility to search for audio devices and serial ports.
 
-Use this utility to search for audio devices and serial ports.
+The functionally of this utility is focused for ham radio use, to help with integration and automation with Direwolf. But it can be useful as an one in all utility.
 
-The functionally of this utility is focused for ham radio use, to help with integration and automation with Direwolf.
-
-`./find_devices -p --print "audio,ports" --audio-begin --desc Texas --audio-end --port-begin --desc cp21 --port-end`
+`./find_devices -p -i all --audio.desc Texas --port.desc cp21`
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/16e63b8e-40b7-43b4-9cbe-212f95ac3c2d)
-
 
 ## Motivation
 
 - Easy and quick enumeration of audio devices and serial ports within one tool
-- Programmable support, with easy integration and no scripting and text processing required
-  - Do not need to parse and manipulate text from logs or output from aplay and arecord
+- Programmable support, with easy integration and no scripting or text processing required
+  - Do not need to parse and manipulate text from logs, or parse output from `aplay` and `arecord`
   - Output from the program can directly be consumed by other programs
   - JSON output writing and printing for easy programmability, with tools like `jq`
-  - Project is well structured (subjectively) and hackable for future modifications
+  - Project is well structured and hackable for future modifications
 - Correlation between audio devices and serial ports
   - A big problem for hams is finding a serial port on the same USB hub as the USB sound card
   - Easily find USB sound cards on the same hub as a USB serial port.  
-- Repeatable results, across system restarts, or when using generic sound cards with the same USB descriptors.
+- Repeatable results, across system restarts, or when using generic sound cards with identical USB descriptors.
   - A big problem for hams is using multiple sound cards that have the same USB descriptors
-  - This tool aims at reliably finding devices and addresing indovidually even if the USB descriptors are all the same
-- No system modifications requirements, like adding udev rules
+  - This tool aims at reliably finding devices and addresing them individually, even if the USB descriptors are all the same
+- No system modifications requirements, no need for udev rules
 
 ## Table of contents
 
@@ -52,27 +49,9 @@ The functionally of this utility is focused for ham radio use, to help with inte
 
 ## Basic example usage
 
-### Obtaining audio devices with Alsa
+### Retrieving audio capture and playback devices in JSON format
 
-To retrieve Alsa capture and playback devices:
-
-`arecord -l`\
-**** List of CAPTURE Hardware Devices ****\
-card 1: CODEC [USB AUDIO  CODEC], device 0: USB Audio [USB Audio]\
-&nbsp;&nbsp;Subdevices: 0/1\
-&nbsp;&nbsp;Subdevice #0: subdevice #0
-
-`aplay -l`\
-**** List of PLAYBACK Hardware Devices ****\
-card 1: CODEC [USB AUDIO  CODEC], device 0: USB Audio [USB Audio]\
-&nbsp;&nbsp;Subdevices: 0/1\
-&nbsp;&nbsp;Subdevice #0: subdevice #0
-
-### Obtaining audio devices with find_devices
-
-#### To retrieve audio capture and playback devices in JSON format
-
-`./find_devices --type 'capture&playback' --json`\
+`./find_devices --audio.type 'capture&playback' -j`\
 {\
 &nbsp;&nbsp;&nbsp;&nbsp;"audio_devices": [ \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ \
@@ -96,24 +75,23 @@ card 1: CODEC [USB AUDIO  CODEC], device 0: USB Audio [USB Audio]\
 &nbsp;&nbsp;&nbsp;&nbsp;] \
 }
 
-#### To retrieve audio capture and serial ports and print them to stdout
-
-Simply run with no arguments `./find_devices`
+### To print sound cards and serial ports to stdout: `./find_devices`
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/36f088c3-a332-4329-aaff-eeb28c45b7ee)
 
-#### To print detailed information about each device, add the `-p` argument
+### To print detailed information about each device, add the `-p` argument: `./find_devices -p`
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/7c017b89-581f-465d-89ef-8966e4a327f9)
 
-## JSON parsing example with jq
+### Scripting example
 
 Install `jq`.
 
-Run `find_devices`:
+Run `./find_devices -j | jq -r ".audio_devices[0].plughw_id" ` 
 
-`./find_devices --name "USB Audio" --desc "Texas Instruments" --type 'capture&playback' --json | jq -r ".devices[0].plughw_id" ` \
-plughw:1,0
+The program will print `plughw:1,0`
+
+For a more complex scripting example look at `find_devices_scripting.sh`
 
 ## Building
 
@@ -125,11 +103,15 @@ Generate your build scripts with CMake, and build:
 
 ~~~~
 cd find_devices/
-mkdir out
+mkdir out 
 cd out
 cmake ..
 make
 ~~~~
+
+### Docker
+
+A Docker container is provided, which can also be used as a self-contained build.
 
 ### Dependencies
 
@@ -137,15 +119,15 @@ This project uses `libudev` and `libsound2` as development library dependencies,
 
 This project is using `CMake`, and has been tested with the GCC compiler.
 
-This project also utilizes the `fmt` and `nlohmann::json` libraries, which are automatically installed with the CMake build scripting.
+This project also utilizes the `fmt`, `cxxopts` and `nlohmann::json` libraries, which are automatically installed in source form by the CMake build.
 
 ### Development
 
 You can use `Visual Studio` or `VSCode` for remote Linux development.
 
-My setup include a Linux machine running Ubuntu 22.03 Desktop. I do the development in Windows in VSCode or Visual Studio.
+My setup include a Linux machine running Ubuntu 22.03 Desktop. I do the development nn Windows in VSCode or Visual Studio.
 
-In VSCode have CMake Tools, Cpp Tools, and Remote - SSH tools installed. They provide the developer experience for editing, building and debugging.
+In VSCode have CMake Tools, Cpp Tools, and Remote - SSH tools installed. They provide the developer experience for editing, building and debugging this project.
 
 ### Github Actions
 
@@ -161,74 +143,40 @@ You can inspect into the container using `docker container run --interactive --t
 
 ## Help
 
-`./find_devices --help`\
-find_devices - Alsa Device finding utility
+Always use device properties that are unique and uniquely identify your device. Device `names` and `descriptions` are reliable ways to find devices, but they fall apart for example for sound cards, if you have more than one of the same sound card attached to your system. This is because the USB CODECs powering these sound cards have  identical USB descriptors. If you have two Digirig for example, you cannot use their name or description to find the one you want.
 
-Usage:\
-&nbsp;&nbsp;&nbsp;&nbsp;find_devices [--name <Name>][--desc <Description>][--type <TypeSpecifier>][--list][--verbose][--no-verbose][--help]
+The `hardware path` for USB sound cards or serial ports is a reliable and portable way to uniquely identify devices, as long as the same physical USB port is used to attach them. This is the only strategy that works for multiple Signalink devices, which don't have a serial port, and only a Texas Instruments USB CODEC.
 
-Options:\
-&nbsp;&nbsp;&nbsp;&nbsp;--name <name>            partial or complete name of the audio device\
-&nbsp;&nbsp;&nbsp;&nbsp;--desc <description>     partial or complete description of the audio device\
-&nbsp;&nbsp;&nbsp;&nbsp;--verbose                enable verbose printing from this utility\
-&nbsp;&nbsp;&nbsp;&nbsp;--no - verbose           machine parsable output\
-&nbsp;&nbsp;&nbsp;&nbsp;--help                   print this usage\
-&nbsp;&nbsp;&nbsp;&nbsp;--list                   list devices\
-&nbsp;&nbsp;&nbsp;&nbsp;--type                   types of devices to find : playback, capture, playback | capture, playback& capture\
-&nbsp;&nbsp;&nbsp;&nbsp;--lang                   language to be used
+Original FTDI devices typically have a unique `serial number`, use it to reliably find USB serial ports. FTDI clones do not however have unique serial numbers. Use the `hardware path` for FTDI clones. 
 
-Example:\
-&nbsp;&nbsp;&nbsp;&nbsp;find_devices --name "USB Audio" --desc "Texas Instruments" --no-verbose\
-&nbsp;&nbsp;&nbsp;&nbsp;find_devices --list\
-&nbsp;&nbsp;&nbsp;&nbsp;find_devices --list --type playback | capture\
-&nbsp;&nbsp;&nbsp;&nbsp;find_devices --help\
-&nbsp;&nbsp;&nbsp;&nbsp;find_devices --list --json --file out.json
+Devices like the Digirig have a hub internally, and they expose both a serial port used for PTT, and a USB CODEC, both on the same hub. Find the Digirig USB serial port, find its `serial number`, and then find the sibling USB sound card using the `-s port-siblings` command line option. If for whatever reason the serial number is not unique, you can use the same port-siblings approach, but use te `hardware path` to find the serial port as a fallback. As only one of the two hub attached devices need to be found.
 
 ## Practical Examples
 
-### Signalink
 ### Digirig
+
+Digirig devices typically have a unique serial number for their serial port.
+
+Below is an example where given two or more Digirig devices attached to the system, we find the one with the serial port serial number `e804c4c07cc3ec119e57a4f2d297222e`, then find the sound card associated with it:
+
+`./find_devices --port.serial e804c4c07cc3ec119e57a4f2d297222e --ignore-config -p -i all -s port-siblings`
+
+The output of this command will be pretty stout text containing the Digirig serial port and sound card, as well as a JSON file containing all the same data.
+
+**Note** that `--ignore-config`, `-p`, and  `-i all` are optional. 
+
+This command could be used to find the serial ports that typically belong to Digirig devices:
+
+`./find_devices --port.desc CP21 --ignore-config -p --disable-file-write -i ports`
+
+**Note** that `--ignore-config`, `-p`, and  `--disable-file-write` are optional. 
+
+If you only have one Digirig, you could simple run:
+
+`./find_devices --port.desc CP2102N -s port-sibling`
+
+### Signalink
 ### Sabrent USB sound adapter
 ### FTDI USB to TTL cable
 
-## Strategies for finding audio devices and serial ports 
-
-### Only one USB sound card in the system with VOX, ex: Signalink
-
-- find audio device by name and description
-
-### Two USB sound card in the system with VOX, but with different audio CODECs models or CODEC manufacturers, ex: Signalink and Digilink Nano
-
-- find audio device by name and description
-
-### Only one USB sound card in the system without VOX and without Serial PTT; One FTDI USB serial for PTT via RTS
-
-- find audio device by name and description
-- find serial port by name and description, or by serial number
-
-### Only one USB sound card in the system with serial PPT, ex: Digirig
-
-#### Strategy 1
-
-- find audio device by name and description
-- find serial port by name and description
-
-#### Strategy 2
-
-- find audio device by name and description
-- find serial port by topology sibling
-
-#### Strategy 3
-
-- find serial port by name and description, or serial number
-- find audio device by topology sibling
-
-### Two or more USB sound card in the system with VOX, of the same model and manufacturer, ex: two or more Signalink
-
-- find audio device by bus number and device number
-
-### Two or more USB sound card in the system without VOX, of the same model and manufacturer, ex: two or more Digirig
-
-- find audio device by bus number and device number
-- find serial port by topology sibling
-
+Original FTDI devices typically have a unique serial number.
