@@ -118,6 +118,10 @@ This project is using `CMake`, and has been tested with the GCC compiler.
 
 This project also utilizes the `fmt`, `cxxopts` and `nlohmann::json` libraries, which are automatically installed in source form by the CMake build.
 
+### Runtime Dependencies
+
+This project uses `libudev` and `libsound2`, please install them with your system package manager or by running `install_dependencies.sh` on a Debian system.
+
 ### Development
 
 You can use `Visual Studio` or `VSCode` for remote Linux development.
