@@ -96,7 +96,14 @@ Run `./find_devices -j | jq -r ".audio_devices[0].plughw_id" `
 
 The program will print `plughw:1,0`
 
-To print the first sound card followed by the first serial port name: `./find_devices -j | jq -r ".audio_devices[0].plughw_id,.serial_ports[0].name"`
+To print the first sound card followed by the first serial port name: `./find_devices -j | jq -r '.audio_devices[0].plughw_id // "",.serial_ports[0].name // ""'`
+
+The program will print:
+
+~~~~
+plughw:0,3
+/dev/ttyUSB3
+~~~~
 
 For a more complex scripting example look at `examples/find_devices_scripting_example.sh`
 
