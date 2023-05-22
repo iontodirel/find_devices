@@ -196,6 +196,9 @@ If you only have one Digirig, you could simple run:
 
 `./find_devices --port.desc CP2102N -s port-sibling`
 
+![image](https://github.com/iontodirel/find_devices/assets/30967482/36efb00d-5000-46f8-9924-77e3492bdb40)
+
+
 ### Signalink
 
 If you only have one Signalink, run `./find_devices -p --audio.desc "Texas Instruments" -i audio`
@@ -214,6 +217,9 @@ Find the hardware path by running `find_devices` with the `-p` option. If you fi
 
 The `hardware path` is going to remain the same as long so you do not change the physical USB port where you insert your Signalink.
 
+![image](https://github.com/iontodirel/find_devices/assets/30967482/feb768b4-9f5b-4539-b4a2-52c15feaf18a)
+
+
 ### Sabrent USB sound adapter
 
 Follow the same approach as with the Signalink. USB descriptors on Sabrent devices are not unique, if you have more than one attached, use the `hardware path`. 
@@ -223,6 +229,9 @@ In addition, configure a query to find the serial port of your choice to drive t
 Example for one Sabrent device and one FTDI serial port:
 
 `./find_devices -s independent --audio.desc C-Media --port.serial A50285BI`
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/8a2d5b24-9cd5-4fe6-b5ff-1ab7bb6dc643)
+
 
 ### FTDI USB to TTL cable and FTDI USB serial devices
 
@@ -234,6 +243,14 @@ If you have multiple FTDI devices, you can search by serial number: `./find_devi
 
 If the serial numbers are not unique across your serial port USB devices, use the `hardware path`: `./find_devices -i ports -p --port.path /sys/devices/pci0000:00/0000:00:14.0/usb1/1-3/1-3.2`
 
+![image](https://github.com/iontodirel/find_devices/assets/30967482/5e7e6f31-0220-41f6-9260-7fc4ab180a22)
+
+
+
 ### u-blox GPS devices
 
 You can find them just like any other serial port devices, here is an example if you have one attached: `./find_devices -i ports -p --port.mfn u-blox`
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/dbddfaab-3a15-4d72-b945-d649463ebed5)
+
+
