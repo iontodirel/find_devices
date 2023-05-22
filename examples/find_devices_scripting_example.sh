@@ -1,5 +1,12 @@
  #!/bin/sh
 
+# **************************************************************** #
+# find_devices - Audio device and serial ports search utility      #
+# Version 0.1.0                                                    #
+# https://github.com/iontodirel/find_devices                       #
+# Copyright (c) 2023 Ion Todirel                                   #
+# **************************************************************** #
+
 # You can set FIND_DEVICES and other variables in the shell with "export FIND_DEVICES=/path/to/executable"
 
 # NOTE: Please modify the path to 'find_devices' as appropriate by updating FIND_DEVICES
@@ -37,11 +44,11 @@ serial_port=$(jq -r .serial_ports[0].name $OUT_JSON)
 # could also be done with jq, but null is nicer to work with that empty
 
 if [[ $audio_device == null ]]; then
-  audio_device=""
+    audio_device=""
 fi
 
 if [[ $serial_port == null ]]; then
-  serial_port=""
+    serial_port=""
 fi
 
 echo "Audio devices count: \"$audio_devices_count\""

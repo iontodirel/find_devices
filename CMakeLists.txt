@@ -1,4 +1,11 @@
-﻿# CMakeLists.txt
+﻿# **************************************************************** #
+# find_devices - Audio device and serial ports search utility      #
+# Version 0.1.0                                                    #
+# https://github.com/iontodirel/find_devices                       #
+# Copyright (c) 2023 Ion Todirel                                   #
+# **************************************************************** #
+#
+# CMakeLists.txt
 # Audio device and serial ports finding utility.
 #
 # MIT License
@@ -63,6 +70,7 @@ if (NOT UNIX)
 endif (NOT UNIX)
 
 set(GIT_HASH "unknown")
+set(FIND_DEVICES_VERSION "0.1.0")
 
 find_package(Git)
 
@@ -72,13 +80,16 @@ if(GIT_FOUND)
     OUTPUT_VARIABLE GIT_HASH
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_QUIET
-    )
+  )
 endif()
 
 message(STATUS "Git hash: ${GIT_HASH}")
 
-target_compile_definitions(find_devices PRIVATE GIT_HASH=${GIT_HASH})
-#target_compile_options(find_devices PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_compile_definitions(find_devices PRIVATE GIT_HASH=${GIT_HASH} FIND_DEVICES_VERSION=${FIND_DEVICES_VERSION})
+if (${ENABLE_WARNINGS_AS_ERRORS})
+  target_compile_options(find_devices PRIVATE -v -Wall -Wextra -Wpedantic -Werror)
+  message("ENABLE_WARNINGS_AS_ERRORS is ON")
+endif()
 target_link_libraries(find_devices PRIVATE asound udev nlohmann_json::nlohmann_json fmt::fmt cxxopts)
 
 configure_file("${PROJECT_SOURCE_DIR}/config.json" "${PROJECT_BINARY_DIR}/config.json")

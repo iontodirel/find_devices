@@ -1,3 +1,10 @@
+// **************************************************************** //
+// find_devices - Audio device and serial ports search utility      // 
+// Version 0.1.0                                                    //
+// https://github.com/iontodirel/find_devices                       //
+// Copyright (c) 2023 Ion Todirel                                   //
+// **************************************************************** //
+//
 // main.cpp
 // Audio device and serial ports finding utility.
 // 
@@ -115,7 +122,7 @@ namespace
 // **************************************************************** //
 //                                                                  //
 //                                                                  //
-// DATA STRUCTURES                                                  //
+// DATA TYPES                                                       //
 //                                                                  //
 //                                                                  //
 // **************************************************************** //
@@ -188,6 +195,7 @@ struct args
     bool disable_colors = false;
     bool no_stdout = false;
     bool command_line_has_errors = false;
+    std::string command_line_error = "";
     bool show_version = false;
 };
 
@@ -197,6 +205,135 @@ struct search_result
     std::vector<std::pair<serial_port, device_description>> ports;
 };
 
+struct option_handler
+{
+    std::string command_line_arg_name;
+    bool has_type = false;
+    std::shared_ptr<cxxopts::Value> type;
+    std::function<void(const cxxopts::ParseResult&)> read_handler;
+};
+
+// **************************************************************** //
+//                                                                  //
+// PARSE TYPE FUNCTIONS                                             //
+//                                                                  //
+// **************************************************************** //
+
+void parse_audio_device_type(const std::string& typeStr, args& args)
+{
+    args.audio_filter.playback_or_capture = false;
+    args.audio_filter.playback_only = false;
+    args.audio_filter.capture_only = false;
+    args.audio_filter.playback_and_capture = false;
+
+    if (typeStr == "playback")
+    {
+        args.audio_filter.playback_only = true;
+    }
+    else if (typeStr == "capture")
+    {
+        args.audio_filter.capture_only = true;
+    }
+    else if (typeStr == "playback|capture" || typeStr == "playback | capture" ||
+        typeStr == "capture|playback" || typeStr == "capture | playback")
+    {
+        args.audio_filter.playback_or_capture = true;
+    }
+    else if (typeStr == "playback&capture" || typeStr == "playback & capture" ||
+        typeStr == "capture&playback" || typeStr == "capture & playback")
+    {
+        args.audio_filter.playback_and_capture = true;
+    }
+}
+
+included_devices parse_included_devices(const std::string& mode)
+{
+    if (mode == "audio")
+    {
+        return included_devices::audio;
+    }
+    else if (mode == "ports")
+    {
+        return included_devices::ports;
+    }
+    else if (mode == "all")
+    {
+        return included_devices::all;
+    }
+    return included_devices::unknown;
+}
+
+search_mode parse_search_mode(const std::string& mode)
+{
+    if (mode == "independent")
+    {
+        return search_mode::independent;
+    }
+    else if (mode == "audio-siblings")
+    {
+        return search_mode::audio_siblings;
+    }
+    else if (mode == "port-siblings")
+    {
+        return search_mode::port_siblings;
+    }
+    return search_mode::not_set;
+}
+
+// **************************************************************** //
+//                                                                  //
+// JSON                                                             //
+//                                                                  //
+// **************************************************************** //
+
+std::string to_json(const search_result& result)
+{
+    std::string s;
+    s += "{\n";
+    s += "    \"audio_devices\": [\n";
+    size_t i = 0;
+    for (const auto& d : result.devices)
+    {
+        s += "        {\n";
+        s += to_json(d.first, false, 2);
+        s += ",\n";
+        s += to_json(d.second, false, 2);
+        s += "\n";
+        s += "        }";
+        if ((i + 1) < result.devices.size())
+        {
+            s.append(",");
+        }
+        s.append("\n");
+        i++;
+    }
+    
+    s += "    ],\n";
+    s += "    \"serial_ports\": [\n";    
+
+    size_t j = 0;
+    for (const auto& p : result.ports)
+    {
+        s += "        {\n";
+        s += to_json(p.first, false, 2);
+        s += ",\n";
+        s += to_json(p.second, false, 2);
+        s += "\n";
+        s += "        }";
+         if ((j + 1) < result.ports.size())
+        {
+            s.append(",");
+        }
+        s.append("\n");
+        j++;
+    }
+
+    s += "    ]\n";
+    s += "}";
+
+    return s;
+}
+
 // **************************************************************** //
 //                                                                  //
 // AUDIO DEVICES                                                    //
@@ -205,6 +342,7 @@ struct search_result
 
 std::vector<audio_device_info> get_audio_devices(const audio_device_filter& m);
 bool match_audio_device(const audio_device_info& d, const audio_device_filter& m);
+bool match_device(const device_description& p, const audio_device_filter& m);
 
 std::vector<audio_device_info> get_audio_devices(const audio_device_filter& m)
 {
@@ -268,6 +406,20 @@ bool match_audio_device(const audio_device_info& d, const audio_device_filter& m
     return true;
 }
 
+bool match_device(const device_description& p, const audio_device_filter& m)
+{
+    if (m.bus != -1 && m.bus != p.bus_number)
+        return false;
+    if (m.device != -1 && m.device != p.device_number)
+        return false;
+    if (m.topology != -1 && m.topology != p.topology_depth)
+        return false;
+    if (!m.path.empty() && m.path != p.path)
+        return false;
+
+    return true;
+}
+
 // **************************************************************** //
 //                                                                  //
 // SERIAL PORTS                                                     //
@@ -276,7 +428,6 @@ bool match_audio_device(const audio_device_info& d, const audio_device_filter& m
 
 std::vector<serial_port> get_serial_ports(const serial_port_filter& m);
 bool match_port(const serial_port& p, const serial_port_filter& m);
-bool match_device(const device_description& p, const audio_device_filter& m);
 bool match_device(const device_description& p, const serial_port_filter& m);
 
 std::vector<serial_port> get_serial_ports(const serial_port_filter& m)
@@ -314,20 +465,6 @@ bool match_port(const serial_port& p, const serial_port_filter& m)
     return true;
 }
 
-bool match_device(const device_description& p, const audio_device_filter& m)
-{
-    if (m.bus != -1 && m.bus != p.bus_number)
-        return false;
-    if (m.device != -1 && m.device != p.device_number)
-        return false;
-    if (m.topology != -1 && m.topology != p.topology_depth)
-        return false;
-    if (!m.path.empty() && m.path != p.path)
-        return false;
-
-    return true;
-}
-
 bool match_device(const device_description& p, const serial_port_filter& m)
 {
     if (m.bus != -1 && m.bus != p.bus_number)
@@ -353,11 +490,8 @@ std::vector<std::pair<serial_port, device_description>> filter_serial_ports(cons
 std::vector<audio_device_info> get_sibling_audio_devices(const std::vector<std::pair<serial_port, device_description>>& ports);
 std::vector<serial_port> get_sibling_serial_ports(const std::vector<std::pair<audio_device_info, device_description>>& devices);
 search_result search(const args& args);
-search_mode parse_search_mode(const std::string& mode);
 bool has_audio_device_description_filter(const args& args);
 bool has_serial_port_description_filter(const args& args);
-
-std::string to_json(const search_result& result);
 
 std::vector<std::pair<audio_device_info, device_description>> filter_audio_devices(const args& args, const std::vector<audio_device_info>& devices)
 {
@@ -461,71 +595,6 @@ search_result search(const args& args)
     return result;
 }
 
-search_mode parse_search_mode(const std::string& mode)
-{
-    if (mode == "independent")
-    {
-        return search_mode::independent;
-    }
-    else if (mode == "audio-siblings")
-    {
-        return search_mode::audio_siblings;
-    }
-    else if (mode == "port-siblings")
-    {
-        return search_mode::port_siblings;
-    }
-    return search_mode::not_set;
-}
-
-std::string to_json(const search_result& result)
-{
-    std::string s;
-    s += "{\n";
-    s += "    \"audio_devices\": [\n";
-    size_t i = 0;
-    for (const auto& d : result.devices)
-    {
-        s += "        {\n";
-        s += to_json(d.first, false, 2);
-        s += ",\n";
-        s += to_json(d.second, false, 2);
-        s += "\n";
-        s += "        }";
-        if ((i + 1) < result.devices.size())
-        {
-            s.append(",");
-        }
-        s.append("\n");
-        i++;
-    }
-    
-    s += "    ],\n";
-    s += "    \"serial_ports\": [\n";    
-
-    size_t j = 0;
-    for (const auto& p : result.ports)
-    {
-        s += "        {\n";
-        s += to_json(p.first, false, 2);
-        s += ",\n";
-        s += to_json(p.second, false, 2);
-        s += "\n";
-        s += "        }";
-         if ((j + 1) < result.ports.size())
-        {
-            s.append(",");
-        }
-        s.append("\n");
-        j++;
-    }
-
-    s += "    ]\n";
-    s += "}";
-
-    return s;
-}
-
 bool has_audio_device_description_filter(const args& args)
 {
     return (args.audio_filter.bus != -1 ||
@@ -548,49 +617,58 @@ bool has_serial_port_description_filter(const args& args)
 //                                                                  //
 // **************************************************************** //
 
-int print_usage();
-bool has_command_line_property(const args& args, const std::string& arg);
-bool config_file_present(const args& args);
-args parse_command_line(int argc, char* argv[]);
-void parse_audio_device_type(const std::string& typeStr, args& args);
-included_devices parse_included_devices(const std::string& mode);
+bool try_parse_command_line(int argc, char* argv[], args& args);
 
 bool try_parse_command_line(int argc, char* argv[], args& args)
 {
-    cxxopts::Options options("find_devices", "Audio device and serial ports finding utility");
+    std::map<std::string, option_handler> command_map =
+    {
+        { "version", {"v,version", false, nullptr, [&](const cxxopts::ParseResult& result) { args.show_version = true; }}},
+        { "help", {"h,help", false, nullptr, [&](const cxxopts::ParseResult& result) { args.help = true; }}},
+        { "disable-colors", {"disable-colors", false, nullptr, [&](const cxxopts::ParseResult& result) { args.disable_colors = result["disable-colors"].as<bool>(); }}},
+        { "disable-file-write", {"disable-file-write", false, nullptr, [&](const cxxopts::ParseResult& result) { args.disable_write_file = result["disable-file-write"].as<bool>(); }}},
+        { "ignore-config", {"ignore-config", false, nullptr, [&](const cxxopts::ParseResult& result) { args.ignore_config = result["ignore-config"].as<bool>(); }}},
+        { "list-properties", {"p,list-properties", false, nullptr, [&](const cxxopts::ParseResult& result) { args.list_properties = result["list-properties"].as<bool>(); }}},
+        { "use-json", {"j,use-json", false, nullptr, [&](const cxxopts::ParseResult& result) { args.use_json = result["use-json"].as<bool>(); }}},
+        { "search-mode", {"s,search-mode", true, cxxopts::value<std::string>()->default_value("independent"), [&](const cxxopts::ParseResult& result) { args.search_mode = parse_search_mode(result["search-mode"].as<std::string>()); }}},
+        { "included-devices", {"i,included-devices", true, cxxopts::value<std::string>()->default_value("all"), [&](const cxxopts::ParseResult& result) { args.included_devices = parse_included_devices(result["included-devices"].as<std::string>()); }}},
+        { "verbose", {"verbose", true, cxxopts::value<bool>()->default_value("true"), [&](const cxxopts::ParseResult& result) { args.verbose = result["verbose"].as<bool>(); }}},
+        { "no-stdout", {"no-stdout", false, nullptr, [&](const cxxopts::ParseResult& result) { args.no_stdout = true; }}},
+        { "no-verbose", {"no-verbose", false, nullptr, [&](const cxxopts::ParseResult& result) { args.verbose = false; }}},
+        { "config-file", {"c,config-file", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.config_file = result["config-file"].as<std::string>(); }}},
+        { "output-file", {"o,output-file", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.output_file = result["output-file"].as<std::string>(); }}},
+        { "expected-count", {"e,expected-count", true, cxxopts::value<int>()->default_value("1"), [&](const cxxopts::ParseResult& result) { args.expected_count = result["expected-count"].as<int>(); }}},
+        { "audio.desc", {"audio.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.desc_filter = result["audio.desc"].as<std::string>(); }}},
+        { "audio.name", {"audio.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.name_filter = result["audio.name"].as<std::string>(); }}},
+        { "audio.type", {"audio.type", true, cxxopts::value<std::string>()->default_value("playback|capture"), [&](const cxxopts::ParseResult& result) { parse_audio_device_type(result["audio.type"].as<std::string>(), args); }}},
+        { "audio.bus", {"audio.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.bus = result["audio.bus"].as<int>(); }}},
+        { "audio.device", {"audio.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.device = result["audio.device"].as<int>(); }}},
+        { "audio.topology", {"audio.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.topology = result["audio.topology"].as<int>(); }}},
+        { "audio.path", {"audio.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.path = result["audio.path"].as<std::string>(); }}},
+        { "port.name", {"port.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.name_filter = result["port.name"].as<std::string>(); }}},
+        { "port.desc", {"port.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.description_filter = result["port.desc"].as<std::string>(); }}},
+        { "port.bus", {"port.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.bus"].as<std::string>(), args.port_filter.bus); }}},
+        { "port.device", {"port.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.device"].as<std::string>(), args.port_filter.device); }}},
+        { "port.topology", {"port.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.topology"].as<std::string>(), args.port_filter.topology); }}},
+        { "port.path", {"port.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.path = result["port.path"].as<std::string>(); }}},
+        { "port.serial", {"port.serial", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.device_serial_number = result["port.serial"].as<std::string>(); }}}
+    };
+
+    cxxopts::Options options("", "");
     
-    options
-        .allow_unrecognised_options()
-        .add_options()
-        ("audio.name", "", cxxopts::value<std::string>())        
-        ("audio.desc", "", cxxopts::value<std::string>())
-        ("audio.type", "", cxxopts::value<std::string>()->default_value("playback|capture"))
-        ("audio.bus", "", cxxopts::value<int>())
-        ("audio.device", "", cxxopts::value<int>())
-        ("audio.path", "", cxxopts::value<std::string>())
-        ("audio.topology", "", cxxopts::value<int>())
-        ("port.name", "", cxxopts::value<std::string>())
-        ("port.desc", "", cxxopts::value<std::string>())
-        ("port.bus", "", cxxopts::value<int>())
-        ("port.device", "", cxxopts::value<int>())
-        ("port.topology", "", cxxopts::value<int>())
-        ("port.path", "", cxxopts::value<std::string>())
-        ("port.serial", "", cxxopts::value<std::string>())
-        ("s,search-mode", "", cxxopts::value<std::string>()->default_value("independent"))
-        ("p,list-properties", "")
-        ("e,expected-count", "", cxxopts::value<int>()->default_value("1"))
-        ("ignore-config", "")
-        ("c,config-file", "", cxxopts::value<std::string>())
-        ("o,output-file", "", cxxopts::value<std::string>())
-        ("i,included-devices", "", cxxopts::value<std::string>()->default_value("all"))
-        ("disable-colors", "")
-        ("j,use-json", "")
-        ("disable-file-write", "")
-        ("v,version", "")
-        ("verbose", "", cxxopts::value<bool>()->default_value("true"))
-        ("no-verbose", "")
-        ("no-stdout", "")
-        ("h,help", "");
+    cxxopts::OptionAdder option_group = options.allow_unrecognised_options().add_options();
+
+    for (const auto& command : command_map)
+    {
+        if (command.second.type != nullptr)
+        {
+            option_group(command.second.command_line_arg_name, "", command.second.type);
+        }
+        else
+        {
+            option_group(command.second.command_line_arg_name, "");
+        }        
+    }
 
     cxxopts::ParseResult result;
     
@@ -600,208 +678,41 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
     }
     catch (const cxxopts::exceptions::incorrect_argument_type& e)
     {
-        printf("Error parsing command line: %s\n\n", e.what());
+        args.command_line_error = fmt::format("Error parsing command line: {}\n\n", e.what());
         args.command_line_has_errors = true;
-        print_usage();        
         return false;
     }
     catch (const std::exception& e)
     {
-        printf("Error parsing command line.");
+        args.command_line_error = "Error parsing command line.";
         args.command_line_has_errors = true;
-        print_usage();
         return false;
     }    
-
-    std::vector<std::string> unmatched = result.unmatched();
-    if (unmatched.size() > 0)
-    {
-        fmt::print(fg(fmt::color::red), "Unknown command line argument: \"{}\"\n\n", unmatched[0]);
-        args.command_line_has_errors = true;
-        print_usage();
-        return false;
-    }
-
-    if (result.count("help") > 0)
-    {
-        args.help = true;
-        return true;
-    }
-
-    if (result.count("version") > 0)
-    {
-        args.show_version = true;
-        printf(
-            "find_devices - audio device and serial ports finding utility\n"        
-            #ifdef GIT_HASH
-            "version "
-            STRINGIFY(GIT_HASH)
-            #endif        
-            "\n"
-            "(C) 2023 Ion Todirel\n"
-            "\n");
-        return 0;
-    }
-
-    args.disable_colors = result["disable-colors"].as<bool>(); // invert
-    args.disable_write_file = result["disable-file-write"].as<bool>();
-    args.ignore_config = result["ignore-config"].as<bool>();
-    args.list_properties = result["list-properties"].as<bool>();
-    args.use_json = result["use-json"].as<bool>();
-    args.search_mode = parse_search_mode(result["search-mode"].as<std::string>());
-    args.included_devices = parse_included_devices(result["included-devices"].as<std::string>());
-    args.verbose = result["verbose"].as<bool>();
-
-    if (result.count("no-stdout") > 0)
-    {
-        args.no_stdout = true;
-    }
-
-    if (result.count("no-verbose") > 0)
-    {
-        args.verbose = false;
-    }
 
     for (const auto& arg : result.arguments())
     {
         args.command_line_args.insert({arg.key(), arg.value()});
     }
 
-    if (result.count("config-file") > 0)
+    std::vector<std::string> unmatched = result.unmatched();
+    if (unmatched.size() > 0)
     {
-        args.config_file = result["config-file"].as<std::string>();
+        args.command_line_error = fmt::format("Error parsing command line: {}\n\n", unmatched[0]);
+        args.command_line_has_errors = true;
+        return false;
     }
 
-    if (result.count("output-file") > 0)
+    for (const auto& command : command_map)
     {
-        args.output_file = result["output-file"].as<std::string>();
-    }
-
-    if (result.count("expected-count") > 0)
-    {
-        args.expected_count = result["expected-count"].as<int>();
-    }
-
-    if (result.count("audio.desc") > 0)
-    {
-        args.audio_filter.desc_filter = result["audio.desc"].as<std::string>();
-    }
-
-    if (result.count("audio.name") > 0)
-    {
-        args.audio_filter.name_filter = result["audio.name"].as<std::string>();
-    }
-
-    if (result.count("audio.type") > 0)
-    {
-        parse_audio_device_type(result["audio.type"].as<std::string>(), args);// should just use the enum for the data structure
-    }
-
-    if (result.count("audio.bus") > 0)
-    {
-        args.audio_filter.bus = result["audio.bus"].as<int>();
-    }
-
-    if (result.count("audio.device") > 0)
-    {
-        args.audio_filter.device = result["audio.device"].as<int>();
-    }
-
-    if (result.count("audio.topology") > 0)
-    {
-        args.audio_filter.topology = result["audio.topology"].as<int>();
-    }
-
-    if (result.count("audio.path") > 0)
-    {
-        args.audio_filter.path = result["audio.path"].as<std::string>();
-    }
-
-    if (result.count("port.name") > 0)
-    {
-        args.port_filter.name_filter = result["port.name"].as<std::string>();
-    }
-
-    if (result.count("port.desc") > 0)
-    {
-        args.port_filter.description_filter = result["port.desc"].as<std::string>();
-    }
-
-    if (result.count("port.bus") > 0)
-    {
-        try_parse_number(result["port.bus"].as<std::string>(), args.port_filter.bus);
-    }
-    
-    if (result.count("port.device") > 0)
-    {
-        try_parse_number(result["port.device"].as<std::string>(), args.port_filter.device);
-    }
-    
-    if (result.count("port.topology") > 0)
-    {
-        try_parse_number(result["port.topology"].as<std::string>(), args.port_filter.topology);
-    }
-
-    if (result.count("port.path") > 0)
-    {
-        args.port_filter.path = result["port.path"].as<std::string>();
-    }
-
-    if (result.count("port.serial") > 0)
-    {
-        args.port_filter.device_serial_number = result["port.serial"].as<std::string>();
+        const std::string& key = command.first;
+        const std::function<void(const cxxopts::ParseResult&)>& handler = command.second.read_handler;
+        if (result.count(key) > 0)
+        {
+            handler(result);
+        }
     }
 
     return true;
-}
-
-bool config_file_present(const args& args)
-{
-    return std::filesystem::exists(args.config_file);
-}
-
-void parse_audio_device_type(const std::string& typeStr, args& args)
-{
-    args.audio_filter.playback_or_capture = false;
-    args.audio_filter.playback_only = false;
-    args.audio_filter.capture_only = false;
-    args.audio_filter.playback_and_capture = false;
-
-    if (typeStr == "playback")
-    {
-        args.audio_filter.playback_only = true;
-    }
-    else if (typeStr == "capture")
-    {
-        args.audio_filter.capture_only = true;
-    }
-    else if (typeStr == "playback|capture" || typeStr == "playback | capture" ||
-        typeStr == "capture|playback" || typeStr == "capture | playback")
-    {
-        args.audio_filter.playback_or_capture = true;
-    }
-    else if (typeStr == "playback&capture" || typeStr == "playback & capture" ||
-        typeStr == "capture&playback" || typeStr == "capture & playback")
-    {
-        args.audio_filter.playback_and_capture = true;
-    }
-}
-
-included_devices parse_included_devices(const std::string& mode)
-{
-    if (mode == "audio")
-    {
-        return included_devices::audio;
-    }
-    else if (mode == "ports")
-    {
-        return included_devices::ports;
-    }
-    else if (mode == "all")
-    {
-        return included_devices::all;
-    }
-    return included_devices::unknown;
 }
 
 // **************************************************************** //
@@ -922,14 +833,16 @@ void read_settings(args& args)
 
 // **************************************************************** //
 //                                                                  //
-// MAIN                                                             //
+// MAIN AND HIGH LEVEL FUNCTIONS                                    //
 //                                                                  //
 // **************************************************************** //
 
 int main(int argc, char* argv[]);
-int print_usage();
+void print_usage();
 void print(args& args, search_result& result);
+void print_to_file(const args& args, const std::string& json);
 int list_devices(args& args);
+void print_version();
 
 int main(int argc, char* argv[])
 {
@@ -940,9 +853,21 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    if (args.command_line_has_errors)
+    {
+        print_usage();
+        return 1;
+    }
+
     if (args.help)
     {
         print_usage();
+        return 1;
+    }
+
+    if (args.show_version)
+    {
+        print_version();
         return 1;
     }
 
@@ -951,12 +876,14 @@ int main(int argc, char* argv[])
     return list_devices(args);
 }
 
-int print_usage()
+void print_usage()
 {
     std::string usage =
         "find_devices - audio device and serial ports finding utility\n"        
-        #ifdef GIT_HASH
         "version "
+        STRINGIFY(FIND_DEVICES_VERSION)        
+        #ifdef GIT_HASH        
+        " "
         STRINGIFY(GIT_HASH)
         #endif        
         "\n"
@@ -1034,7 +961,6 @@ int print_usage()
         "    --include-device-types all\n"
         "\n";
     printf("%s", usage.c_str());
-    return 1;
 }
 
 template <typename... Args>
@@ -1214,4 +1140,19 @@ int list_devices(args& args)
     print_to_file(args, json_output);
 
     return 0;
+}
+
+void print_version()
+{
+    printf(
+        "find_devices - audio device and serial ports finding utility\n"        
+        "version "
+        STRINGIFY(FIND_DEVICES_VERSION)
+        #ifdef GIT_HASH
+        " "            
+        STRINGIFY(GIT_HASH)
+        #endif        
+        "\n"
+        "(C) 2023 Ion Todirel\n"
+        "\n");
 }

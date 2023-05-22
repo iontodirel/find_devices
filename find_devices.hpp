@@ -1,4 +1,11 @@
-﻿// find_devices.hpp
+﻿// **************************************************************** //
+// find_devices - Audio device and serial ports search utility      // 
+// Version 0.1.0                                                    //
+// https://github.com/iontodirel/find_devices                       //
+// Copyright (c) 2023 Ion Todirel                                   //
+// **************************************************************** //
+//
+// find_devices.hpp
 // Audio device and serial ports finding utility.
 //
 // MIT License
