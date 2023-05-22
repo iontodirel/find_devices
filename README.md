@@ -32,7 +32,7 @@ The functionally of this utility is focused for ham radio use, to help with inte
   - [Retrieving audio capture and playback devices in JSON format](#retrieving-audio-capture-and-playback-devices-in-json-format)
   - [Print sound cards and serial ports to stdout](#print-sound-cards-and-serial-ports-to-stdout-find_devices)
   - [Print detailed information about each device](#print-detailed-information-about-each-device-find_devices--p)
-- [JSON parsing example with jq](#json-parsing-example-with-jq)
+  - [Scripting example](#scripting-example)
 - [Building](#building)
   - [Dependencies](#dependencies)
   - [Development](#development)
@@ -155,7 +155,7 @@ Always use device properties that are unique and uniquely identify your device. 
 
 The `hardware path` for USB sound cards or serial ports is a reliable and portable way to uniquely identify devices, as long as the same physical USB port is used to attach them. This is the only strategy that works for multiple Signalink devices, which don't have a serial port, and only a Texas Instruments USB CODEC.
 
-Original FTDI devices typically have a unique `serial number`, use it to reliably find USB serial ports. FTDI clones do not however have unique serial numbers. Use the `hardware path` for FTDI clones. 
+Authentic FTDI devices typically have a unique `serial number`, use it to reliably find USB serial ports. FTDI clones do not however have unique serial numbers. Use the `hardware path` for FTDI clones. 
 
 Devices like the Digirig have a hub internally, and they expose both a serial port used for PTT, and a USB CODEC, both on the same hub. Find the Digirig USB serial port, find its `serial number`, and then find the sibling USB sound card using the `-s port-siblings` command line option. If for whatever reason the serial number is not unique, you can use the same port-siblings approach, but use te `hardware path` to find the serial port as a fallback. As only one of the two hub attached devices need to be found.
 
@@ -184,7 +184,35 @@ If you only have one Digirig, you could simple run:
 `./find_devices --port.desc CP2102N -s port-sibling`
 
 ### Signalink
-### Sabrent USB sound adapter
-### FTDI USB to TTL cable
 
-Original FTDI devices typically have a unique serial number.
+If you only have one Signalink, run `./find_devices -p --audio.desc "Texas Instruments" -i audio`
+
+**Note** that `-p` and `-i` are optional.
+
+You might have to adjust your query, as there might be variations in the USB descriptor and CODED used. I've seen some descriptors content having multiple spaces like `USB AUDIO  CODEC`, note the extra space between AUDIO and CODEC.
+
+If you only have one Signalink attached, the audio device `description` is a robust and portable way to find your Signalink.
+
+If you have more than one Signalink in your system, use the `hardware path`:
+
+`./find_devices --audio.path /sys/devices/pci0000:00/0000:00:14.0/usb1/1-4`
+
+Find the hardware path by running `find_devices` with the `-p` option. If you find trouble finding your device (ex: you have 10 Signalink devices), remove all devices and only attach the you are querying about on the USB port you intend to use. Other techniques could include playing tones to your Signalink selectively until you find the right one. You could also find the hardware path by connecting a different device on the port you need to get the path for, if that makes it easier to find the port. You only have to do it once.
+
+The `hardware path` is going to remain the same as long so you do not change the physical USB port where you insert your Signalink.
+
+### Sabrent USB sound adapter
+
+### FTDI USB to TTL cable and FTDI USB serial devices
+
+Authentic FTDI devices typically have a unique serial number, and can be found by serial number.
+
+If you only have one FTDI device, you could search using the `manufacturer` name: `./find_devices -i ports -p --port.mfn FTDI`
+
+If you have multiple FTDI devices, you can search by serial number: `./find_devices -i ports -p --port.serial A9JF6F84`
+
+If the serial numbers are not unique across your serial port USB devices, use the `hardware path`: `./find_devices -i ports -p --port.path /sys/devices/pci0000:00/0000:00:14.0/usb1/1-3/1-3.2`
+
+### u-blox GPS devices
+
+You can find them just like any other serial port devices, here is an example if you have one attached: `./find_devices -i ports -p --port.mfn u-blox`

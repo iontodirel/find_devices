@@ -414,7 +414,7 @@ bool match_device(const device_description& p, const audio_device_filter& m)
         return false;
     if (m.topology != -1 && m.topology != p.topology_depth)
         return false;
-    if (!m.path.empty() && m.path != p.path)
+    if (!m.path.empty() && m.path != p.hw_path)
         return false;
 
     return true;
@@ -473,7 +473,7 @@ bool match_device(const device_description& p, const serial_port_filter& m)
         return false;
     if (m.topology != -1 && m.topology != p.topology_depth)
         return false;
-    if (!m.path.empty() && m.path != p.path)
+    if (!m.path.empty() && m.path != p.hw_path)
         return false;
 
     return true;
@@ -651,7 +651,8 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "port.device", {"port.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.device"].as<std::string>(), args.port_filter.device); }}},
         { "port.topology", {"port.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.topology"].as<std::string>(), args.port_filter.topology); }}},
         { "port.path", {"port.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.path = result["port.path"].as<std::string>(); }}},
-        { "port.serial", {"port.serial", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.device_serial_number = result["port.serial"].as<std::string>(); }}}
+        { "port.serial", {"port.serial", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.device_serial_number = result["port.serial"].as<std::string>(); }}},
+        { "port.mfn", {"port.mfn", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.manufacturer_filter = result["port.mfn"].as<std::string>(); }}}
     };
 
     cxxopts::Options options("", "");
@@ -905,13 +906,14 @@ void print_usage()
         "    --audio.device <number>        search filter: audio device number\n"
         "    --audio.path <path>            search filter: audio device hardware system path\n"
         "    --audio.topology <number>      search filter: the depth of the audio device topology, in the device tree\n"
-        "    --port.name <serial>           search filter: partial or complete name of the serial port\n"
-        "    --port.desc <serial>           search filter: partial or complete description of the serial port\n"
+        "    --port.name <name>             search filter: partial or complete name of the serial port\n"
+        "    --port.desc <description>      search filter: partial or complete description of the serial port\n"
         "    --port.bus <number>            search filter: serial port bus number\n"
-        "    --port.device <number>         search filter: partial or complete serial port device serial number\n"
-        "    --port.topology <number>       search filter: partial or complete serial port device serial number\n"
-        "    --port.path <path>             search filter: partial or complete serial port device serial number\n"
-        "    --port.serial <serial>         search filter: partial or complete serial port device serial number\n"        
+        "    --port.device <number>         search filter: serial port device number\n"
+        "    --port.topology <number>       search filter: the depth of the serial port device topology, in the device tree\n"
+        "    --port.path <path>             search filter: serial port hardware system path\n"
+        "    --port.serial <serial>         search filter: partial or complete serial port device serial number\n"
+        "    --port.mfn <name>              search filter: partial or complete serial port manufacturer name\n"        
         "    -v, --verbose                  enable detailed printing to stdout\n"
         "    --no-verbose                   disable detailed printing to stdout\n"
         "    --no-stdout                    don't print to stdout\n"
@@ -958,7 +960,7 @@ void print_usage()
         "Defaults:\n"
         "    --verbose\n"
         "    --audio.type all\n"
-        "    --include-device-types all\n"
+        "    -i all\n"
         "\n";
     printf("%s", usage.c_str());
 }
