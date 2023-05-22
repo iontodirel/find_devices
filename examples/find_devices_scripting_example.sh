@@ -20,7 +20,6 @@
 : "${DIREWOLF_CONFIG_FILE:=direwolf.conf}"
 
 # Check that the find_devices utility is found
-
 if ! command -v "$FIND_DEVICES" >/dev/null 2>&1; then
     echo "Executable" \"$FIND_DEVICES\"" not found"
     exit 1
@@ -42,11 +41,9 @@ serial_port=$(jq -r .serial_ports[0].name $OUT_JSON)
 
 # Optional to convert the null values to empty
 # could also be done with jq, but null is nicer to work with that empty
-
 if [[ $audio_device == null ]]; then
     audio_device=""
 fi
-
 if [[ $serial_port == null ]]; then
     serial_port=""
 fi
@@ -57,7 +54,6 @@ echo "Audio device: \"$audio_device\""
 echo "Serial port: \"$serial_port\""
 
 # Return if no soundcards and serial ports were found
-
 if [ $audio_devices_count -eq 0 ] || [ $serial_ports_count -eq 0 ]; then
      echo "No audio devices and serial ports found, expected at least one soundcard and at least one serial port"
      exit 1
@@ -67,12 +63,10 @@ fi
 # Update as appropriate
 # Uncomment or comment next lines after as you are writing your configuration
 # to find exactly one devices
-
 if [ $audio_devices_count -ne 1 ]; then
     echo "Audio devices not equal to 1"
     exit 1
 fi
-
 if [ $serial_ports_count -ne 1 ]; then
     echo "Serial ports not equal to 1"
     exit 1
@@ -82,9 +76,7 @@ fi
 echo "Using: $audio_device"
 
 # Replacing "ADEVICE plughw:0,0" with the device we have found in direwolf.conf
-
 echo "Updating the soundcard in the \"direwolf.conf\" file with \"$audio_device\""
-
 sed -i "s/ADEVICE.*/ADEVICE $audio_device/" $DIREWOLF_CONFIG_FILE
 
 exit 0

@@ -39,6 +39,10 @@ The functionally of this utility is focused for ham radio use, to help with inte
   - [Github Actions](#github-actions)
   - [Container](#container)
 - [Practical Examples](#practical-examples)
+  - [Digirig](#digirig)
+  - [Signalink](#signalink)
+  - [FTDI](#ftdi-usb-to-ttl-cable-and-ftdi-usb-serial-devices)
+  - [u-blox](#u-blox-gps-devices)
 - [Strategies for finding devices](#strategies-for-finding-devices)
 
 ## Limitations
@@ -91,6 +95,8 @@ Install `jq`.
 Run `./find_devices -j | jq -r ".audio_devices[0].plughw_id" ` 
 
 The program will print `plughw:1,0`
+
+To print the first sound card followed by the first serial port name: `./find_devices -j | jq -r ".audio_devices[0].plughw_id,.serial_ports[0].name"`
 
 For a more complex scripting example look at `examples/find_devices_scripting_example.sh`
 
@@ -155,7 +161,7 @@ Always use device properties that are unique and uniquely identify your device. 
 
 The `hardware path` for USB sound cards or serial ports is a reliable and portable way to uniquely identify devices, as long as the same physical USB port is used to attach them. This is the only strategy that works for multiple Signalink devices, which don't have a serial port, and only a Texas Instruments USB CODEC.
 
-Authentic FTDI devices typically have a unique `serial number`, use it to reliably find USB serial ports. FTDI clones do not however have unique serial numbers. Use the `hardware path` for FTDI clones. 
+Authentic FTDI devices typically have a unique `serial number`, use it to reliably find USB serial ports. FTDI clones do not typically have unique serial numbers, but you might be lucky to have one. Use the `hardware path` for FTDI clones. 
 
 Devices like the Digirig have a hub internally, and they expose both a serial port used for PTT, and a USB CODEC, both on the same hub. Find the Digirig USB serial port, find its `serial number`, and then find the sibling USB sound card using the `-s port-siblings` command line option. If for whatever reason the serial number is not unique, you can use the same port-siblings approach, but use te `hardware path` to find the serial port as a fallback. As only one of the two hub attached devices need to be found.
 
@@ -202,6 +208,14 @@ Find the hardware path by running `find_devices` with the `-p` option. If you fi
 The `hardware path` is going to remain the same as long so you do not change the physical USB port where you insert your Signalink.
 
 ### Sabrent USB sound adapter
+
+Follow the same approach as with the Signalink. USB descriptors on Sabrent devices are not unique, if you have more than one attached, use the `hardware path`. 
+
+In addition, configure a query to find the serial port of your choice to drive the PTT. Follow the same approach as for FTDI devices below, and specify the search mode to independent with `-s independent`.
+
+Example for one Sabrent device and one FTDI serial port:
+
+`./find_devices -s independent --audio.desc C-Media --port.serial A50285BI`
 
 ### FTDI USB to TTL cable and FTDI USB serial devices
 

@@ -3,23 +3,7 @@
         {
             "audio":
             {
-                "name": "",
-                "desc": "",
-                "bus": "",
-                "device": "",
-                "topology_depth": "",
-                "path": "",
                 "type": "playback|capture"
-            },
-            "port":
-            {
-                "name": "",
-                "desc": "",
-                "bus": "",
-                "device": "",
-                "topology_depth": "",
-                "path": "",
-                "serial": "e804c4c07cc3ec119e57a4f2d297222e"
             }
         },
         "search_mode": "port-siblings",
