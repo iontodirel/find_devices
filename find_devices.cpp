@@ -430,7 +430,6 @@ std::vector<serial_port> get_serial_ports()
     // Could there be other types of serial ports that are not tty?
     
     udev_enumerate_add_match_subsystem(enumerate, "tty");
-    udev_enumerate_add_match_property(enumerate, "ID_BUS", "usb");
 
     udev_enumerate_scan_devices(enumerate);
 
@@ -713,7 +712,6 @@ std::vector<device_description> get_sibling_audio_devices(const device_descripti
     return get_sibling_devices([](udev_enumerate* enumerate) {
         udev_enumerate_add_match_subsystem(enumerate, "sound");
         udev_enumerate_add_match_sysname(enumerate, "card*");
-        udev_enumerate_add_match_property(enumerate, "ID_BUS", "usb");
     }, desc);
 }
 
@@ -721,7 +719,6 @@ std::vector<device_description> get_sibling_serial_ports(const device_descriptio
 {
     return get_sibling_devices([](udev_enumerate* enumerate) {
         udev_enumerate_add_match_subsystem(enumerate, "tty");
-        udev_enumerate_add_match_property(enumerate, "ID_BUS", "usb");
     }, desc);
 }
 
