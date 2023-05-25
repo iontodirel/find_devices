@@ -93,6 +93,7 @@ struct audio_device_info
 
 std::vector<audio_device_info> get_audio_devices();
 bool can_use_audio_device(const audio_device_info& device);
+bool test_audio_device(const audio_device_info& device);
 
 std::string to_string(const audio_device_info&);
 std::string to_json(const audio_device_info& d, bool wrapping_object = true, int tabs = 0);
@@ -112,7 +113,8 @@ struct serial_port
     std::string device_serial_number;
 };
 
-bool can_use_serial_port(const serial_port&);
+bool can_use_serial_port(const serial_port& p);
+bool test_serial_port(const serial_port& device);
 
 std::vector<serial_port> get_serial_ports();
 

@@ -246,38 +246,46 @@ void parse_audio_device_type(const std::string& typeStr, args& args)
     }
 }
 
-included_devices parse_included_devices(const std::string& mode)
+bool try_parse_included_devices(const std::string& mode_str, included_devices& mode)
 {
-    if (mode == "audio")
+    if (mode_str == "audio")
     {
-        return included_devices::audio;
+        mode = included_devices::audio;
     }
-    else if (mode == "ports")
+    else if (mode_str == "ports")
     {
-        return included_devices::ports;
+        mode = included_devices::ports;
     }
-    else if (mode == "all")
+    else if (mode_str == "all")
     {
-        return included_devices::all;
+        mode = included_devices::all;
     }
-    return included_devices::unknown;
+    else
+    {
+        return false;
+    }
+    return true;
 }
 
-search_mode parse_search_mode(const std::string& mode)
+bool try_parse_search_mode(const std::string& mode_str, search_mode& mode)
 {
-    if (mode == "independent")
+    if (mode_str == "independent")
     {
-        return search_mode::independent;
+        mode = search_mode::independent;
     }
-    else if (mode == "audio-siblings")
+    else if (mode_str == "audio-siblings")
     {
-        return search_mode::audio_siblings;
+        mode = search_mode::audio_siblings;
     }
-    else if (mode == "port-siblings")
+    else if (mode_str == "port-siblings")
     {
-        return search_mode::port_siblings;
+        mode = search_mode::port_siblings;
     }
-    return search_mode::not_set;
+    else
+    {
+        return false;
+    }
+    return true;
 }
 
 // **************************************************************** //
@@ -630,8 +638,8 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "ignore-config", {"ignore-config", false, nullptr, [&](const cxxopts::ParseResult& result) { args.ignore_config = result["ignore-config"].as<bool>(); }}},
         { "list-properties", {"p,list-properties", false, nullptr, [&](const cxxopts::ParseResult& result) { args.list_properties = result["list-properties"].as<bool>(); }}},
         { "use-json", {"j,use-json", false, nullptr, [&](const cxxopts::ParseResult& result) { args.use_json = result["use-json"].as<bool>(); }}},
-        { "search-mode", {"s,search-mode", true, cxxopts::value<std::string>()->default_value("independent"), [&](const cxxopts::ParseResult& result) { args.search_mode = parse_search_mode(result["search-mode"].as<std::string>()); }}},
-        { "included-devices", {"i,included-devices", true, cxxopts::value<std::string>()->default_value("all"), [&](const cxxopts::ParseResult& result) { args.included_devices = parse_included_devices(result["included-devices"].as<std::string>()); }}},
+        { "search-mode", {"s,search-mode", true, cxxopts::value<std::string>()->default_value("independent"), [&](const cxxopts::ParseResult& result) { try_parse_search_mode(result["search-mode"].as<std::string>(), args.search_mode); }}},
+        { "included-devices", {"i,included-devices", true, cxxopts::value<std::string>()->default_value("all"), [&](const cxxopts::ParseResult& result) { try_parse_included_devices(result["included-devices"].as<std::string>(), args.included_devices); }}},
         { "verbose", {"verbose", true, cxxopts::value<bool>()->default_value("true"), [&](const cxxopts::ParseResult& result) { args.verbose = result["verbose"].as<bool>(); }}},
         { "no-stdout", {"no-stdout", false, nullptr, [&](const cxxopts::ParseResult& result) { args.no_stdout = true; }}},
         { "no-verbose", {"no-verbose", false, nullptr, [&](const cxxopts::ParseResult& result) { args.verbose = false; }}},
@@ -772,7 +780,7 @@ void read_settings(args& args)
     }
 
     if (!args.command_line_args.contains("search-mode"))
-        args.search_mode = parse_search_mode(j.value("search_mode", ""));
+        try_parse_search_mode(j.value("search_mode", ""), args.search_mode);
     if (!args.command_line_args.contains("expected-count"))
         try_parse_number(j.value("expected_count", ""), args.expected_count);
     if (!args.command_line_args.contains("use-json"))
@@ -789,7 +797,7 @@ void read_settings(args& args)
         }
     }
     if (!args.command_line_args.contains("included-devices"))
-        args.included_devices = parse_included_devices(j.value("included_devices", ""));
+        try_parse_included_devices(j.value("included_devices", ""), args.included_devices);
     if (j.contains("search_criteria"))
     {
         nlohmann::json search_criteria = j["search_criteria"];
@@ -854,8 +862,9 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if (args.command_line_has_errors)
+    if (args.command_line_has_errors && !args.no_stdout)
     {
+        printf("%s\n\n", args.command_line_error.c_str());
         print_usage();
         return 1;
     }
@@ -939,7 +948,9 @@ void print_usage()
         "                                   if not specified default config file name used is \"config.json\"\n"
         "    --disable-colors               do not print colors in stdout\n"
         "    --disable-file-write           disables writing a JSON file with the results of the search, which is the defaul\n"
-        "    --test-data    <file>          fake the data as if it came from the system, for testing purposes\n"
+        "    --test-data <file>             not yet implemented: fake the data as if it came from the system, for testing purposes\n"
+        "    -t, --test-devices             not yet implemented: test each device hardware that we find\n"
+        "                                   if hardware test fails, removes it from the search results list\n"
         "\n"
         "Returns:\n"
         "    0 - success, audio devices or serial ports are found matching the search criteria\n"
@@ -961,6 +972,7 @@ void print_usage()
         "    --verbose\n"
         "    --audio.type all\n"
         "    -i all\n"
+        "    -s independent\n"
         "\n";
     printf("%s", usage.c_str());
 }

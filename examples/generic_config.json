@@ -6,7 +6,6 @@
                 "type": "playback|capture"
             }
         },
-        "search_mode": "port-siblings",
         "included_devices": "all",
         "use_json": "false"
     }

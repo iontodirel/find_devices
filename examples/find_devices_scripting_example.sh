@@ -41,10 +41,10 @@ serial_port=$(jq -r .serial_ports[0].name $OUT_JSON)
 
 # Optional to convert the null values to empty
 # could also be done with jq, but null is nicer to work with that empty
-if [[ $audio_device == null ]]; then
+if [[ -z $audio_device ]]; then
     audio_device=""
 fi
-if [[ $serial_port == null ]]; then
+if [[ -z $serial_port ]]; then
     serial_port=""
 fi
 

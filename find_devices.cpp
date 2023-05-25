@@ -104,6 +104,7 @@ bool try_get_audio_device(int card_id, int device_id, snd_ctl_t*& ctl_handle, sn
 bool try_get_audio_device(int card_id, int device_id, snd_ctl_t* ctl_handle, audio_device_info& device);
 bool can_use_audio_device(const audio_device_info& device, snd_pcm_stream_t mode);
 bool can_use_audio_device(const audio_device_info& device);
+bool test_audio_device(const audio_device_info& device);
 
 audio_device_type operator|(const audio_device_type& l, const audio_device_type& r)
 {
@@ -391,6 +392,58 @@ bool can_use_audio_device(const audio_device_info& device)
             can_use_audio_device(device, SND_PCM_STREAM_PLAYBACK);
     }
     return false;
+}
+
+bool test_audio_device(const audio_device_info& device)
+{
+    int err;
+    snd_pcm_t* pcm_handle;
+    snd_pcm_hw_params_t* hw_params;
+    const unsigned int buffer_size = 1024;  // Specify the buffer size in frames
+    const unsigned int channels = 2;  // Number of audio channels
+    unsigned int sample_rate = 44100;  // Audio sample rate
+
+    // Open the ALSA device for playback
+    err = snd_pcm_open(&pcm_handle, device.hw_id.c_str(), SND_PCM_STREAM_PLAYBACK, 0);
+    if (err < 0)
+    {
+        return false;
+    }
+
+    // Allocate and initialize hardware parameters object
+    snd_pcm_hw_params_alloca(&hw_params);
+    snd_pcm_hw_params_any(pcm_handle, hw_params);
+
+    // Set hardware parameters for desired configuration
+    snd_pcm_hw_params_set_access(pcm_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED);
+    snd_pcm_hw_params_set_format(pcm_handle, hw_params, SND_PCM_FORMAT_S16_LE);
+    snd_pcm_hw_params_set_channels(pcm_handle, hw_params, channels);
+    snd_pcm_hw_params_set_rate_near(pcm_handle, hw_params, &sample_rate, 0);
+
+    // Apply the hardware parameters to the PCM device
+    err = snd_pcm_hw_params(pcm_handle, hw_params);
+    if (err < 0)
+    {
+        snd_pcm_close(pcm_handle);
+        return false;
+    }
+
+    // Create a buffer to store the zeros
+    short zeros[buffer_size * channels];
+    memset(zeros, 0, sizeof(zeros));
+
+    // Write the buffer of zeros to the PCM device
+    err = snd_pcm_writei(pcm_handle, zeros, buffer_size);
+    if (err < 0)
+    {
+        snd_pcm_close(pcm_handle);
+        return false;
+    }
+
+    // Close the PCM device
+    snd_pcm_close(pcm_handle);
+
+    return true;
 }
 
 // **************************************************************** //
