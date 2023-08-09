@@ -79,4 +79,20 @@ echo "Using: $audio_device"
 echo "Updating the soundcard in the \"direwolf.conf\" file with \"$audio_device\""
 sed -i "s/ADEVICE.*/ADEVICE $audio_device/" $DIREWOLF_CONFIG_FILE
 
+audio_device_card_id=$(jq -r .audio_devices[0].card_id $OUT_JSON)
+controls_count=$(jq ".audio_devices[0].controls | length" $OUT_JSON)
+for ((i = 0; i < $controls_count; i++)); do
+    control_name=$(jq -r .audio_devices[0].controls[$i].name $OUT_JSON)
+    control_value=$(jq -r .audio_devices[0].controls[$i].value $OUT_JSON)
+    control_type=$(jq -r .audio_devices[0].controls[$i].type $OUT_JSON)
+    
+    echo
+    echo "Control Name: $control_name"
+    echo "Value: $control_value"
+    echo "Type: $control_type"
+    echo
+
+    amixer -c "$audio_device_card_id" sset "$control_name" 100%
+done
+
 exit 0
