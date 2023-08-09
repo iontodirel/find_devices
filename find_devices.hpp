@@ -101,6 +101,29 @@ std::string to_json(const std::vector<audio_device_info>& devices);
 
 // **************************************************************** //
 //                                                                  //
+// AUDIO DEVICE VOLUME                                              //
+//                                                                  //
+// **************************************************************** //
+
+struct audio_device_volume_control
+{
+    std::string name;
+    int volume = 0;
+    bool playback = false;
+    bool capture = false;
+};
+
+struct audio_device_volume
+{
+    audio_device_info audio_device;
+    std::vector<audio_device_volume_control> controls;
+};
+
+std::string to_json(const audio_device_volume& d, bool wrapping_object = true, int tabs = 0);
+bool try_get_audio_device_volume(const audio_device_info& device, audio_device_volume& volume);
+
+// **************************************************************** //
+//                                                                  //
 // SERIAL PORTS                                                     //
 //                                                                  //
 // **************************************************************** //

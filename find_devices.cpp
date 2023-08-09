@@ -1,4 +1,4 @@
-﻿// **************************************************************** //
+// **************************************************************** //
 // find_devices - Audio device and serial ports search utility      // 
 // Version 0.1.0                                                    //
 // https://github.com/iontodirel/find_devices                       //
@@ -392,6 +392,108 @@ bool can_use_audio_device(const audio_device_info& device)
             can_use_audio_device(device, SND_PCM_STREAM_PLAYBACK);
     }
     return false;
+}
+
+// **************************************************************** //
+//                                                                  //
+//                                                                  //
+// AUDIO DEVICE VOLUME                                              //
+//                                                                  //
+//                                                                  //
+// **************************************************************** //
+
+bool try_get_audio_device_volume(const audio_device_info& device, audio_device_volume& volume)
+{
+    volume.audio_device = device;
+    volume.controls.clear();
+
+    snd_mixer_t *handle;
+    snd_mixer_selem_id_t *sid;
+
+    snd_mixer_open(&handle, 0);
+    snd_mixer_attach(handle, ("hw:" + std::to_string(device.card_id)).c_str());
+    snd_mixer_selem_register(handle, nullptr, nullptr);
+    snd_mixer_load(handle);
+    snd_mixer_selem_id_malloc(&sid);
+    snd_mixer_selem_id_set_index(sid, 0);
+
+    audio_device_volume_control volume_control;
+
+    snd_mixer_elem_t* elem = nullptr;
+    for (elem = snd_mixer_first_elem(handle); elem; elem = snd_mixer_elem_next(elem))
+    {
+        snd_mixer_selem_get_id(elem, sid);
+
+        volume_control.name = snd_mixer_selem_get_name(elem);
+
+        long min = 0, max = 100, value = 0;
+        int volumePercent = 0;
+        if (snd_mixer_selem_has_capture_volume(elem))
+        {
+            snd_mixer_selem_get_capture_volume_range(elem, &min, &max);
+            snd_mixer_selem_get_capture_volume(elem, SND_MIXER_SCHN_MONO, &value);
+            volume_control.volume = (value - min) * 100 / (max - min);
+            volume_control.playback = false;
+            volume_control.capture = true;
+            volume.controls.push_back(volume_control);
+        }
+        if (snd_mixer_selem_has_playback_volume(elem))
+        {
+            snd_mixer_selem_get_playback_volume_range(elem, &min, &max);
+            snd_mixer_selem_get_playback_volume(elem, SND_MIXER_SCHN_MONO, &value);
+            volume_control.volume = (value - min) * 100 / (max - min);
+            volume_control.playback = true;
+            volume_control.capture = false;
+            volume.controls.push_back(volume_control);
+        }
+    }
+
+    snd_mixer_selem_id_free(sid);
+    snd_mixer_close(handle);
+
+    return true;
+}
+
+std::string to_json(const audio_device_volume& d, bool wrapping_object, int tabs);
+
+std::string to_json(const audio_device_volume& d, bool wrapping_object, int tabs)
+{
+    std::string s;
+    if (wrapping_object)
+    {
+        s.append("{\n");
+    }
+    s.append("    \"card_id\": \"" + std::to_string(d.audio_device.card_id) + "\",\n");
+    s.append("    \"device_id\": \"" + std::to_string(d.audio_device.device_id) + "\",\n");
+    s.append("    \"plughw_id\": \"" + d.audio_device.plughw_id + "\",\n");
+    s.append("    \"hw_id\": \"" + d.audio_device.hw_id + "\",\n");
+    s.append("    \"name\": \"" + d.audio_device.name + "\",\n");
+    s.append("    \"description\": \"" + d.audio_device.description + "\",\n");
+    s.append("    \"type\": \"" + to_string(d.audio_device.type) + "\",\n");
+    s.append("    \"controls\": [\n");
+    for (size_t i = 0; i < d.controls.size(); i++)
+    {
+        s.append("        {\n");
+        s.append("            \"name\": \"" + d.controls[i].name + "\",\n");
+        s.append("            \"value\": \"" + std::to_string(d.controls[i].volume) + "\",\n");
+        s.append("            \"type\": ");
+        if (d.controls[i].playback)
+            s.append("\"playback\"\n");
+        if (d.controls[i].capture)
+            s.append("\"capture\"\n");
+        s.append("        }");
+        if ((i + 1) < d.controls.size())
+            s.append(",");
+        s.append("\n");
+    }
+    s.append("    ]");
+    if (wrapping_object)
+    {
+        s.append("\n");
+        s.append("}");
+    }
+    insert_tabs(s, tabs);
+    return s;
 }
 
 bool test_audio_device(const audio_device_info& device)

@@ -201,7 +201,7 @@ struct args
 
 struct search_result
 {
-    std::vector<std::pair<audio_device_info, device_description>> devices;
+    std::vector<std::pair<audio_device_volume, device_description>> devices;
     std::vector<std::pair<serial_port, device_description>> ports;
 };
 
@@ -497,6 +497,7 @@ std::vector<std::pair<audio_device_info, device_description>> filter_audio_devic
 std::vector<std::pair<serial_port, device_description>> filter_serial_ports(const args& args, const std::vector<serial_port>& ports);
 std::vector<audio_device_info> get_sibling_audio_devices(const std::vector<std::pair<serial_port, device_description>>& ports);
 std::vector<serial_port> get_sibling_serial_ports(const std::vector<std::pair<audio_device_info, device_description>>& devices);
+std::vector<std::pair<audio_device_volume, device_description>> map_device_to_volume(const std::vector<std::pair<audio_device_info, device_description>>& devices);
 search_result search(const args& args);
 bool has_audio_device_description_filter(const args& args);
 bool has_serial_port_description_filter(const args& args);
@@ -582,23 +583,36 @@ std::vector<serial_port> get_sibling_serial_ports(const std::vector<std::pair<au
     return ports;
 }
 
+std::vector<std::pair<audio_device_volume, device_description>> map_device_to_volume(const std::vector<std::pair<audio_device_info, device_description>>& devices)
+{
+    std::vector<std::pair<audio_device_volume, device_description>> devices_volumes;
+    for (const auto& device : devices)
+    {
+        audio_device_volume device_volume;
+        try_get_audio_device_volume(device.first, device_volume);
+        devices_volumes.push_back(std::make_pair(device_volume, device.second));
+    }
+    return devices_volumes;
+}
+
 search_result search(const args& args)
 {
     search_result result;
     if (args.search_mode == search_mode::independent)
     {
-        result.devices = filter_audio_devices(args, get_audio_devices());
+        result.devices = map_device_to_volume(filter_audio_devices(args, get_audio_devices()));
         result.ports = filter_serial_ports(args, get_serial_ports());
     }
     else if (args.search_mode == search_mode::port_siblings)
     {
         result.ports = filter_serial_ports(args, get_serial_ports());
-        result.devices = filter_audio_devices(args, get_sibling_audio_devices(result.ports));        
+        result.devices = map_device_to_volume(filter_audio_devices(args, get_sibling_audio_devices(result.ports)));        
     }
     else if (args.search_mode == search_mode::audio_siblings)
     {
-        result.devices = filter_audio_devices(args, get_audio_devices());
-        result.ports = filter_serial_ports(args, get_sibling_serial_ports(result.devices));
+        auto devices = filter_audio_devices(args, get_audio_devices());
+        result.devices = map_device_to_volume(devices);
+        result.ports = filter_serial_ports(args, get_sibling_serial_ports(devices));
     }
     return result;
 }
@@ -1004,30 +1018,40 @@ void print(args& args, search_result& result)
         for (const auto& d : result.devices)
         {
             if (!args.verbose )
-                printf("%s\n", d.first.plughw_id.c_str());
+                printf("%s\n", d.first.audio_device.plughw_id.c_str());
             else
             {
                 print(!args.disable_colors, fmt::emphasis::bold, "{:>4})", i);
-                print(!args.disable_colors, fmt::emphasis::bold | fg(fmt::color::chartreuse), " {}", d.first.hw_id);
+                print(!args.disable_colors, fmt::emphasis::bold | fg(fmt::color::chartreuse), " {}", d.first.audio_device.hw_id);
                 fmt::print(": ");
-                print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::cornflower_blue), "{}", d.first.name);
+                print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::cornflower_blue), "{}", d.first.audio_device.name);
                 fmt::print(" - ");
-                print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::chocolate), "{}", d.first.description);
+                print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::chocolate), "{}", d.first.audio_device.description);
                 fmt::println("");
 
                 if (args.list_properties)
                 {
                     fmt::println("");
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "hwid");
-                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.hw_id);
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.audio_device.hw_id);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "plughwid");
-                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.plughw_id);
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.audio_device.plughw_id);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "name");
-                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.name);
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.audio_device.name);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "description");
-                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.description);
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.audio_device.description);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "stream name");
-                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.stream_name);                
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.audio_device.stream_name);                
+
+                    print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "volumes");
+                    for (size_t k = 0; k < d.first.controls.size(); k++)
+                    {
+                        print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}%", d.first.controls[k].volume);
+                        if ((k + 1) < d.first.controls.size())
+                            print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), ", ");
+                    }
+                    fmt::print("\n");
+
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "bus");
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.bus_number);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "device");
