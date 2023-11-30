@@ -138,6 +138,7 @@ struct audio_device_filter
 {
     std::string name_filter = "";
     std::string desc_filter = "";
+    std::string stream_name_filter = "";
     bool playback_only = false; // use audio_device_type?
     bool capture_only = false; // use audio_device_type?
     bool playback_or_capture = false; // use audio_device_type?
@@ -372,21 +373,14 @@ bool match_audio_device(const audio_device_info& d, const audio_device_filter& m
     std::string device_name_filter = to_lower(m.name_filter);
     std::string device_desc = to_lower(d.description);
     std::string device_desc_filter = to_lower(m.desc_filter);
+    std::string device_stream_name = to_lower(d.stream_name);
+    std::string device_stream_name_filter = to_lower(m.stream_name_filter);
 
-    if (!device_name_filter.empty() && !device_desc_filter.empty())
+    if ((!device_name_filter.empty() && device_name.find(device_name_filter) == std::string::npos) ||
+        (!device_desc_filter.empty() && device_desc.find(device_desc_filter) == std::string::npos) ||
+        (!device_stream_name_filter.empty() && device_stream_name.find(device_stream_name_filter) == std::string::npos))
     {
-        if (device_name.find(device_name_filter) == std::string::npos || device_desc.find(device_desc_filter) == std::string::npos)
-        {
-            return false;
-        }
-    }
-    else
-    {
-        if ((!device_name_filter.empty() && device_name.find(device_name_filter) == std::string::npos) ||
-            (!device_desc_filter.empty() && device_desc.find(device_desc_filter) == std::string::npos))
-        {
-            return false;
-        }
+        return false;
     }
 
     if (m.playback_and_capture && !m.playback_or_capture &&
@@ -662,6 +656,7 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "expected-count", {"e,expected-count", true, cxxopts::value<int>()->default_value("1"), [&](const cxxopts::ParseResult& result) { args.expected_count = result["expected-count"].as<int>(); }}},
         { "audio.desc", {"audio.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.desc_filter = result["audio.desc"].as<std::string>(); }}},
         { "audio.name", {"audio.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.name_filter = result["audio.name"].as<std::string>(); }}},
+        { "audio.stream_name", {"audio.stream_name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.stream_name_filter = result["audio.stream_name"].as<std::string>(); }}},
         { "audio.type", {"audio.type", true, cxxopts::value<std::string>()->default_value("playback|capture"), [&](const cxxopts::ParseResult& result) { parse_audio_device_type(result["audio.type"].as<std::string>(), args); }}},
         { "audio.bus", {"audio.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.bus = result["audio.bus"].as<int>(); }}},
         { "audio.device", {"audio.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.device = result["audio.device"].as<int>(); }}},
@@ -820,6 +815,8 @@ void read_settings(args& args)
             nlohmann::json audio_match = search_criteria["audio"];
             if (!args.command_line_args.contains("audio.name"))
                 args.audio_filter.name_filter = audio_match.value("name", "");
+            if (!args.command_line_args.contains("audio.stream_name"))
+                args.audio_filter.stream_name_filter = audio_match.value("stream_name", "");
             if (!args.command_line_args.contains("audio.desc"))
                 args.audio_filter.desc_filter = audio_match.value("desc", "");
             if (!args.command_line_args.contains("audio.type"))
@@ -918,6 +915,7 @@ void print_usage()
         "\n"
         "Options:\n"
         "    --audio.name <name>            search filter: partial or complete name of the audio device\n"
+        "    --audio.stream_name <name>     search filter: partial or complete name of the audio stream name\n"
         "    --audio.desc <description>     search filter: partial or complete description of the audio device\n"
         "    --audio.type <type>            search filter: types of audio devices to find: playback, capture, playback|capture, playback&capture:\n"
         "                                       playback - playback only\n"
@@ -1043,7 +1041,7 @@ void print(args& args, search_result& result)
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "stream name");
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.audio_device.stream_name);                
 
-                    print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "volumes");
+                    print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "volume controls");
                     for (size_t k = 0; k < d.first.controls.size(); k++)
                     {
                         print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}%", d.first.controls[k].volume);

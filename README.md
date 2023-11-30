@@ -1,8 +1,8 @@
  # find_devices
 
-Audio device and serial ports search utility. Use this utility to search for audio devices and serial ports.
+Audio device and serial ports search utility. Use this utility to find audio devices and serial ports.
 
-The functionally of this utility is focused for ham radio use, to help with integration and automation with Direwolf. But it can be useful as an one in all utility.
+The functionally of this utility is focused for ham radio use, to help with integration and automation with Direwolf, or other software. This utility can be useful as well as an one-in-all tool.
 
 `./find_devices -p -i all --audio.desc Texas --port.desc cp21`
 
@@ -11,18 +11,20 @@ The functionally of this utility is focused for ham radio use, to help with inte
 ## Motivation
 
 - Easy and quick enumeration of audio devices and serial ports within one tool
-- Programmable support, with easy integration and no scripting or text processing required
-  - Do not need to parse and manipulate text from logs, or parse output from `aplay` and `arecord`
-  - Output from the program can directly be consumed by other programs
-  - JSON output writing and printing for easy programmability, with tools like `jq`
-  - Project is well structured and hackable for future modifications
-- Correlation between audio devices and serial ports
-  - A big problem for hams is finding a serial port on the same USB hub as the USB sound card
-  - Easily find USB sound cards on the same hub as a USB serial port.  
+- Programmatic support, with easy integration, and no text processing
+  - Do not need to parse and manipulate text from logs, or parse text output from `aplay` and `arecord`
+  - Output from this utility can directly be consumed by other programs (ex: via jq)
+  - Structured output via JSON output. JSON output writing and printing for easy programmability, with tools like `jq`
+  - Project is structured in modular fashion, with pieces that can be reused
+    - Hackable for future or further modifications (ex: libusb support)
+    - Command line parsing is not coupled to the audio and udev utility classes
+- Mapping between audio devices and serial ports
+  - A big problem for hams can be finding a serial port that's on the same USB hub as an USB sound card
+    - Easily find USB sound cards on the same hub as a USB serial port.  
 - Repeatable results, across system restarts, or when using generic sound cards with identical USB descriptors.
-  - A big problem for hams is using multiple sound cards that have the same USB descriptors
-  - This tool aims at reliably finding devices and addresing them individually, even if the USB descriptors are all the same
-- No system modifications requirements, no need for udev rules
+  - A big problem for hams can be using multiple sound cards, which have the same USB descriptors
+  - This tool aims at reliably and repeatedly finding devices and addresing them individually, even if the USB descriptors are all the same
+- No system modifications requirements, no need for udev rules, no need for root access
 
 ## Table of contents
 
@@ -245,8 +247,6 @@ If the serial numbers are not unique across your serial port USB devices, use th
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/5e7e6f31-0220-41f6-9260-7fc4ab180a22)
 
-
-
 ### u-blox GPS devices
 
 You can find them just like any other serial port devices, here is an example if you have one attached: `./find_devices -i ports -p --port.mfn u-blox`
@@ -254,3 +254,8 @@ You can find them just like any other serial port devices, here is an example if
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/dbddfaab-3a15-4d72-b945-d649463ebed5)
 
 
+### Microsoft Surface Go 2
+
+On the Surface and other computers with built in audio, the audio device is typically built into the PCH, and is not a USB attached sound card.
+
+Use a filter on the `stream name` to find it: `./find_devices -i audio -p --audio.stream_name ALC298`
