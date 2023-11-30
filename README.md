@@ -259,3 +259,8 @@ You can find them just like any other serial port devices, here is an example if
 On the Surface and other computers with built in audio, the audio device is typically built into the PCH, and is not a USB attached sound card.
 
 Use a filter on the `stream name` to find it: `./find_devices -i audio -p --audio.stream_name ALC298`
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/115090ac-c52b-4597-bb5d-8cb3b98d453a)
+
+
+
