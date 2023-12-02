@@ -209,7 +209,7 @@ Devices like the Digirig have a hub internally, and they expose both a serial po
 
 ## Volume Control
 
-This utility is capable of enumarating and changing an audio device's volume controls.
+This utility is capable of enumerating and changing an audio device's volume controls.
 
 The volume controls are printed in stdout in a compact format:
 
