@@ -38,6 +38,7 @@ The functionally of this utility is focused for ham radio use, to help with inte
 - [Building](#building)
   - [Dependencies](#dependencies)
   - [Development](#development)
+    - [Specifying Command Line Arguments When Debugging in VSCode](#specifying-command-line-arguments-when-debugging-in-vscode)
   - [Github Actions](#github-actions)
   - [Container](#container)
 - [Strategies for finding devices](#strategies-for-finding-devices)
