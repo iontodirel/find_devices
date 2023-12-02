@@ -172,14 +172,14 @@ In VSCode, I have the following extensions installed: CMake Tools, Cpp Tools, an
 
 An example of what you could specify in the .vscode/settings.json file:
 
-~~~~
+```json
 "cmake.debugConfig": {
     "args": [
         "-c",
         "/home/iontodirel/ham_docker_container/digirig_config.json"
     ]
 }
-~~~~
+```
 
 ### Github Actions
 
@@ -195,10 +195,10 @@ You can inspect into the container using `docker container run --interactive --t
 
 To copy the executable built in the container from the container:
 
-~~~~
+```sh
 docker run --name find_devices find_devices
 docker cp find_devices:/find_devices/find_devices .
-~~~~
+```
 
 ## Strategies for finding devices
 
