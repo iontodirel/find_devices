@@ -69,6 +69,23 @@ The functionally of this utility is focused for ham radio use, to help with inte
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"name": "USB Audio Device",  \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"description": "C-Media Electronics Inc. USB Audio Device at usb-0000:00:14.0-6", \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": "capture&playback" \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"controls": [ \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"name": "Speaker", \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": "playback" \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}, \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"name": "Mic", \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": "capture" \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}, \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"name": "Mic", \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": "playback" \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;], \
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"bus_number": "1"\
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"device_number": "10",\
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"id_product": "0014",\
@@ -139,11 +156,24 @@ This project uses `libudev` and `libsound2`, please install them with your syste
 
 ### Development
 
-You can use `Visual Studio` or `VSCode` for remote Linux development.
+You can use `Visual Studio` or `VSCode` for remote or native Linux development.
 
-My setup include a Linux machine running Ubuntu 22.03 Desktop. I do the development nn Windows in VSCode or Visual Studio.
+My deveopment setup include a Linux machine running Ubuntu 22.03 Desktop. I do the development on a Windows Laptop in VSCode or Visual Studio. With VSCode or Visual Studio connecting to a Linux system. 
 
-In VSCode have CMake Tools, Cpp Tools, and Remote - SSH tools installed. They provide the developer experience for editing, building and debugging this project.
+In VSCode, I have the following extensions installed: CMake Tools, Cpp Tools, and Remote - SSH. They provide the developer experience for editing, building and debugging this project.
+
+#### Specifying command line arguments when debugging in VSCode
+
+An example of what you could specify in the .vscode/settings.json file:
+
+~~~~
+"cmake.debugConfig": {
+    "args": [
+        "-c",
+        "/home/iontodirel/ham_docker_container/digirig_config.json"
+    ]
+}
+~~~~
 
 ### Github Actions
 
@@ -173,6 +203,40 @@ The `hardware path` for USB sound cards or serial ports is a reliable and portab
 Authentic FTDI devices typically have a unique `serial number`, use it to reliably find USB serial ports. FTDI clones do not typically have unique serial numbers, but you might be lucky to have one. Use the `hardware path` for FTDI clones. 
 
 Devices like the Digirig have a hub internally, and they expose both a serial port used for PTT, and a USB CODEC, both on the same hub. Find the Digirig USB serial port, find its `serial number`, and then find the sibling USB sound card using the `-s port-siblings` command line option. If for whatever reason the serial number is not unique, you can use the same port-siblings approach, but use te `hardware path` to find the serial port as a fallback. As only one of the two hub attached devices need to be found.
+
+## Volume Control
+
+This utility is capable of enumarating and changing an audio device's volume controls.
+
+The volume controls are printed in stdout in a compact format:
+
+
+
+The volume controls are also written to JSON:
+
+"controls": [ \
+&nbsp;&nbsp;{ \
+&nbsp;&nbsp;&nbsp;&nbsp;"name": "Speaker", \
+&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
+&nbsp;&nbsp;&nbsp;&nbsp;"type": "playback" \
+&nbsp;&nbsp;}, \
+&nbsp;&nbsp;{ \
+&nbsp;&nbsp;&nbsp;&nbsp;"name": "Mic", \
+&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
+&nbsp;&nbsp;&nbsp;&nbsp;"type": "capture" \
+&nbsp;&nbsp;}, \
+&nbsp;&nbsp;{ \
+&nbsp;&nbsp;&nbsp;&nbsp;"name": "Mic", \
+&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
+&nbsp;&nbsp;&nbsp;&nbsp;"type": "playback" \
+&nbsp;&nbsp;} \
+]
+
+The bash script in this repositry has an example about retrieving a volume control and setting it using bash here: examples/find_devices_scripting_example.sh
+
+The example uses find_devices to write the volume controls to JSON. For each volume control, we print the name, type and value, and we set it to 100%.
+
+To change a volume control using amixer: `amixer -c 0 sset Speaker 100%`
 
 ## Practical Examples
 
