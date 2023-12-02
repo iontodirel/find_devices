@@ -12,6 +12,7 @@ The functionally of this utility is focused for ham radio use, to help with inte
 
 - Enumerating sound cards
 - Enumerating serial ports
+- Audio volume enumeration and control
 - Mapping sound ports to serial ports (and vice versa)
 - Printing to stdout and to JSON
 - Search from command line, or via a JSON configuration file
