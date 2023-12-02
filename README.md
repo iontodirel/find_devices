@@ -8,26 +8,17 @@ The functionally of this utility is focused for ham radio use, to help with inte
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/16e63b8e-40b7-43b4-9cbe-212f95ac3c2d)
 
-## Motivation
+## Capabilities
 
-- Easy and quick enumeration of audio devices and serial ports within one tool
-- Programmatic support, with easy integration, and no text processing
-  - Do not need to parse and manipulate text from logs, or parse text output from `aplay` and `arecord`
-  - Output from this utility can directly be consumed by other programs (ex: via jq)
-  - Structured output via JSON output. JSON output writing and printing for easy programmability, with tools like `jq`
-  - Project is structured in modular fashion, with pieces that can be reused
-    - Hackable for future or further modifications (ex: libusb support)
-    - Command line parsing is not coupled to the audio and udev utility classes
-- Mapping between audio devices and serial ports
-  - A big problem for hams can be finding a serial port that's on the same USB hub as an USB sound card
-    - Easily find USB sound cards on the same hub as a USB serial port.  
-- Repeatable results, across system restarts, or when using generic sound cards with identical USB descriptors.
-  - A big problem for hams can be using multiple sound cards, which have the same USB descriptors
-  - This tool aims at reliably and repeatedly finding devices and addresing them individually, even if the USB descriptors are all the same
-- No system modifications requirements, no need for udev rules, no need for root access
+- Enumerating sound cards
+- Enumerating serial ports
+- Mapping sound ports to serial ports (and vice versa)
+- Printing to stdout and to JSON
+- Search from command line, or via a JSON configuration file
 
 ## Table of contents
 
+- [Capabilities](#capabilities)
 - [Motivation](#motivation)
 - [Limitations](#limitations)
 - [Basic example usage](#basic-example-usage)
@@ -49,6 +40,24 @@ The functionally of this utility is focused for ham radio use, to help with inte
   - [FTDI](#ftdi-usb-to-ttl-cable-and-ftdi-usb-serial-devices)
   - [u-blox](#u-blox-gps-devices)
   - [Microsoft Surface Go](#microsoft-surface-go-2)
+
+## Motivation
+
+- Easy and quick enumeration of audio devices and serial ports within one tool
+- Programmatic support, with easy integration, and no text processing
+  - Do not need to parse and manipulate text from logs, or parse text output from `aplay` and `arecord`
+  - Output from this utility can directly be consumed by other programs (ex: via jq)
+  - Structured output via JSON output. JSON output writing and printing for easy programmability, with tools like `jq`
+  - Project is structured in modular fashion, with pieces that can be reused
+    - Hackable for future or further modifications (ex: libusb support)
+    - Command line parsing is not coupled to the audio and udev utility classes
+- Mapping between audio devices and serial ports
+  - A big problem for hams can be finding a serial port that's on the same USB hub as an USB sound card
+    - Easily find USB sound cards on the same hub as a USB serial port.  
+- Repeatable results, across system restarts, or when using generic sound cards with identical USB descriptors.
+  - A big problem for hams can be using multiple sound cards, which have the same USB descriptors
+  - This tool aims at reliably and repeatedly finding devices and addresing them individually, even if the USB descriptors are all the same
+- No system modifications requirements, no need for udev rules, no need for root access
 
 ## Limitations
 
