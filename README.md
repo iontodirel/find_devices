@@ -40,12 +40,14 @@ The functionally of this utility is focused for ham radio use, to help with inte
   - [Development](#development)
   - [Github Actions](#github-actions)
   - [Container](#container)
+- [Strategies for finding devices](#strategies-for-finding-devices)
+- [Volume Control](#volume-control)
 - [Practical Examples](#practical-examples)
   - [Digirig](#digirig)
   - [Signalink](#signalink)
   - [FTDI](#ftdi-usb-to-ttl-cable-and-ftdi-usb-serial-devices)
   - [u-blox](#u-blox-gps-devices)
-- [Strategies for finding devices](#strategies-for-finding-devices)
+  - [Microsoft Surface Go](#microsoft-surface-go-2)
 
 ## Limitations
 
@@ -210,7 +212,7 @@ This utility is capable of enumarating and changing an audio device's volume con
 
 The volume controls are printed in stdout in a compact format:
 
-
+![image](https://github.com/iontodirel/find_devices/assets/30967482/cf9f1dac-040b-447b-b340-06b2ac25bf58)
 
 The volume controls are also written to JSON:
 
