@@ -323,7 +323,9 @@ You can find them just like any other serial port devices, here is an example if
 
 ### Microsoft Surface Go 2
 
-On the Surface and other computers with built in audio, the audio device is typically built into the PCH, and is not a USB attached sound card.
+On the Surface and other computers (running Linux) with built in audio, the audio device is typically built into the PCH, and is not a USB attached sound card.
+
+The Surface Go 2 computer is running Ubuntu 22.03.
 
 Use a filter on the `stream name` to find it: `./find_devices -i audio -p --audio.stream_name ALC298`
 
