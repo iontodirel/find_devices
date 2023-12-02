@@ -61,46 +61,49 @@ The functionally of this utility is focused for ham radio use, to help with inte
 
 ### Retrieving audio capture and playback devices in JSON format
 
-`./find_devices --audio.type 'capture&playback' -j`\
-{\
-&nbsp;&nbsp;&nbsp;&nbsp;"audio_devices": [ \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"card_id": 1, \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"device_id": 0, \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"plughw_id": "plughw:1,0",  \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"hw_id": "hw:1,0",  \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"name": "USB Audio Device",  \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"description": "C-Media Electronics Inc. USB Audio Device at usb-0000:00:14.0-6", \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": "capture&playback" \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"controls": [ \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"name": "Speaker", \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": "playback" \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}, \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"name": "Mic", \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": "capture" \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}, \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"name": "Mic", \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": "playback" \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;], \
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"bus_number": "1"\
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"device_number": "10",\
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"id_product": "0014",\
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"id_vendor": "0d8c",\
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"manufacturer": "C-Media Electronics Inc.",\
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"path": "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-6/1-6:1.0/sound/card1",\
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"hw_path": "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-6",\
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"product": "USB Audio Device",\
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"topology_depth": "2"\
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} \
-&nbsp;&nbsp;&nbsp;&nbsp;] \
+`./find_devices --audio.type 'capture&playback' -j`
+
+```json
+{
+    "audio_devices": [
+        {
+            "card_id": "0",
+            "device_id": "0",
+            "plughw_id": "plughw:0,0",
+            "hw_id": "hw:0,0",
+            "name": "USB PnP Sound Device",
+            "description": "C-Media Electronics Inc. USB PnP Sound Device at usb-0000:00:14.0-4.1.1, full s",
+            "type": "capture&playback",
+            "controls": [
+                {
+                    "name": "Speaker",
+                    "value": "100",
+                    "type": "playback"
+                },
+                {
+                    "name": "Mic",
+                    "value": "100",
+                    "type": "capture"
+                },
+                {
+                    "name": "Mic",
+                    "value": "100",
+                    "type": "playback"
+                }
+            ],
+            "bus_number": "1",
+            "device_number": "7",
+            "id_product": "013c",
+            "id_vendor": "0d8c",
+            "device_manufacturer": "C-Media Electronics Inc.      ",
+            "path": "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-4/1-4.1/1-4.1.1/1-4.1.1:1.0/sound/card0",
+            "hw_path": "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-4/1-4.1/1-4.1.1",
+            "product": "USB PnP Sound Device",
+            "topology_depth": "4"
+        }
+    ]
 }
+```
 
 ### Print sound cards and serial ports to stdout: `./find_devices`
 
@@ -217,23 +220,25 @@ The volume controls are printed in stdout in a compact format:
 
 The volume controls are also written to JSON:
 
-"controls": [ \
-&nbsp;&nbsp;{ \
-&nbsp;&nbsp;&nbsp;&nbsp;"name": "Speaker", \
-&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
-&nbsp;&nbsp;&nbsp;&nbsp;"type": "playback" \
-&nbsp;&nbsp;}, \
-&nbsp;&nbsp;{ \
-&nbsp;&nbsp;&nbsp;&nbsp;"name": "Mic", \
-&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
-&nbsp;&nbsp;&nbsp;&nbsp;"type": "capture" \
-&nbsp;&nbsp;}, \
-&nbsp;&nbsp;{ \
-&nbsp;&nbsp;&nbsp;&nbsp;"name": "Mic", \
-&nbsp;&nbsp;&nbsp;&nbsp;"value": "100", \
-&nbsp;&nbsp;&nbsp;&nbsp;"type": "playback" \
-&nbsp;&nbsp;} \
+```json
+"controls": [
+    {
+        "name": "Speaker",
+        "value": "100",
+        "type": "playback"
+    },
+    {
+        "name": "Mic",
+        "value": "100",
+        "type": "capture"
+    },
+    {
+        "name": "Mic",
+        "value": "100",
+        "type": "playback"
+    }
 ]
+```
 
 The bash script in this repositry has an example about retrieving a volume control and setting it using bash here: examples/find_devices_scripting_example.sh
 
