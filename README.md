@@ -373,7 +373,7 @@ Because the Signalink uses a different TI CODEC part number, with different idPr
 
 ### Icom ID-52
 
-The Icom ID-52 exposes one serial port when connected to a computer via the micro-USB port. The manufacturer and description in the USB descriptor are set to "Icom" and "ID-52". The serial number is also set, and I believe it to be unique. 
+The Icom ID-52 exposes one serial port when connected to a computer via the micro-USB port. The manufacturer and description in the USB descriptor are set to "Icom" and "ID-52". The serial number is also set, and I believe it to be unique. They match the device serial number written on the back, behind the battery.
 
 Here is an example to find one: `./find_devices -i ports -p --port.serial "15002168"`
 
@@ -383,7 +383,7 @@ Here is an example to find one: `./find_devices -i ports -p --port.serial "15002
 
 The Icom IC-705 exposes three USB devices when connected to a computer via the micro-USB port. One USB device is a soundcard, and two USB devices are serial ports.
 
-The two serial ports correspond to USB A and USB B, as referenced throught the IC-705 menus. Both serial ports have the same unique serial number, but they cannot be unique identified other than throught the `hardware path`. 
+The two serial ports correspond to USB A and USB B, as referenced throught the IC-705 menus. Both serial ports have the same unique serial number, but they cannot be unique identified other than throught the `hardware path`. The serial number match the device serial number written on the back, behind the battery.
 
 The USB soundcard is implemented using a Texas Instruments CODEC, typically PCM2901 (some revisions might use a different one). The USB soundcard and the serial ports are on the same USB hub, as such the sound card can be found robustly using the serial port's serial number, even when multiple IC-705 are connected to the same computer.
 
