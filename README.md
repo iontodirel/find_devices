@@ -1,8 +1,8 @@
  # find_devices
 
-Audio device and serial ports search utility. Use this utility to find audio devices and serial ports.
+Audio device and serial ports search utility. Use this utility to find audio devices and/or serial ports.
 
-The functionally of this utility is focused for ham radio use, to help with integration and automation with Direwolf, or other software. This utility can be useful as well as an one-in-all tool.
+The functionally of this utility is tailored for amateur radio use. It can help with integration and automation with Direwolf and other related software. Aditionally this utility can be useful as a one-in-all tool.
 
 `./find_devices -p -i all --audio.desc Texas --port.desc cp21`
 
@@ -260,6 +260,8 @@ To change a volume control using amixer: `amixer -c 0 sset Speaker 100%`
 
 ## Practical Examples
 
+All the examples shared here were created using real hardware devices.
+
 ### Digirig
 
 Digirig devices typically have a unique serial number for their serial port.
@@ -366,3 +368,14 @@ If you want to uniquely identify one of many DigiLink Nano devices use the `hard
 Because the Signalink uses a different TI CODEC part number, with different idProduct values and slightly different USB descriptors, you should be able to use a DigiLink Nano and a Signalink in the system, and uniquely identify each just by `name` or `description`. 
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/40b4e3cd-1bcc-4dff-8836-1b7c8032aaae)
+
+### Icom ID-52
+
+The Icom ID-52 exposes one serial port when connected to a computer via the micro-USB port. The manufacturer and description in the USB descriptor are set to "Icom" and "ID-52". The serial number is also set, and I believe it to be unique. 
+
+Here is an example to find one: `./find_devices -i ports -p --port.serial "15002168"`
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/9edb2efa-42d9-4e33-8813-e91d3c86a686)
+
+
+
