@@ -26,6 +26,7 @@ The functionally of this utility is tailored for amateur radio use. It can help 
   - [Retrieving audio capture and playback devices in JSON format](#retrieving-audio-capture-and-playback-devices-in-json-format)
   - [Print sound cards and serial ports to stdout](#print-sound-cards-and-serial-ports-to-stdout-find_devices)
   - [Print detailed information about each device](#print-detailed-information-about-each-device-find_devices--p)
+  - [Volume Control](#volume-control)
   - [Scripting example](#scripting-example)
 - [Building](#building)
   - [Dependencies](#dependencies)
@@ -34,7 +35,6 @@ The functionally of this utility is tailored for amateur radio use. It can help 
   - [Github Actions](#github-actions)
   - [Container](#container)
 - [Strategies for finding devices](#strategies-for-finding-devices)
-- [Volume Control](#volume-control)
 - [Practical Examples](#practical-examples)
   - [Digirig](#digirig)
   - [Signalink](#signalink)
@@ -129,6 +129,42 @@ The functionally of this utility is tailored for amateur radio use. It can help 
 ### Print detailed information about each device: `./find_devices -p`
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/7c017b89-581f-465d-89ef-8966e4a327f9)
+
+### Volume Control
+
+This utility is capable of enumerating and changing an audio device's volume controls.
+
+The volume controls are printed in stdout in a compact format:
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/cf9f1dac-040b-447b-b340-06b2ac25bf58)
+
+The volume controls are also written to JSON:
+
+```json
+"controls": [
+    {
+        "name": "Speaker",
+        "value": "100",
+        "type": "playback"
+    },
+    {
+        "name": "Mic",
+        "value": "100",
+        "type": "capture"
+    },
+    {
+        "name": "Mic",
+        "value": "100",
+        "type": "playback"
+    }
+]
+```
+
+The bash script in this repositry has an example about retrieving a volume control and setting it using bash here: examples/find_devices_scripting_example.sh
+
+The example uses find_devices to write the volume controls to JSON. For each volume control, we print the name, type and value, and we set it to 100%.
+
+To change a volume control using amixer: `amixer -c 0 sset Speaker 100%`
 
 ### Scripting example
 
@@ -226,42 +262,6 @@ The `hardware path` for USB sound cards or serial ports is a reliable and portab
 Authentic FTDI devices typically have a unique `serial number`, use it to reliably find USB serial ports. FTDI clones do not typically have unique serial numbers, but you might be lucky to have one. Use the `hardware path` for FTDI clones. 
 
 Devices like the Digirig have a hub internally, and they expose both a serial port used for PTT, and a USB CODEC, both on the same hub. Find the Digirig USB serial port, find its `serial number`, and then find the sibling USB sound card using the `-s port-siblings` command line option. If for whatever reason the serial number is not unique, you can use the same port-siblings approach, but use te `hardware path` to find the serial port as a fallback. As only one of the two hub attached devices need to be found.
-
-## Volume Control
-
-This utility is capable of enumerating and changing an audio device's volume controls.
-
-The volume controls are printed in stdout in a compact format:
-
-![image](https://github.com/iontodirel/find_devices/assets/30967482/cf9f1dac-040b-447b-b340-06b2ac25bf58)
-
-The volume controls are also written to JSON:
-
-```json
-"controls": [
-    {
-        "name": "Speaker",
-        "value": "100",
-        "type": "playback"
-    },
-    {
-        "name": "Mic",
-        "value": "100",
-        "type": "capture"
-    },
-    {
-        "name": "Mic",
-        "value": "100",
-        "type": "playback"
-    }
-]
-```
-
-The bash script in this repositry has an example about retrieving a volume control and setting it using bash here: examples/find_devices_scripting_example.sh
-
-The example uses find_devices to write the volume controls to JSON. For each volume control, we print the name, type and value, and we set it to 100%.
-
-To change a volume control using amixer: `amixer -c 0 sset Speaker 100%`
 
 ## Practical Examples
 
