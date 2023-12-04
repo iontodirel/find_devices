@@ -43,7 +43,8 @@ The functionally of this utility is tailored for amateur radio use. It can help 
   - [Microsoft Surface Go](#microsoft-surface-go-2)
   - [DigiLink Nano](#digilink-nano)
   - [Icom ID-52](#icom-id-52)
-  - [Icom IC-705](#icom-iC-705)
+  - [Icom IC-705](#icom-ic-705)
+  - [Kenwood TH-D74](#kenwood-th-d74)
 
 ## Motivation
 
@@ -395,6 +396,16 @@ If you have to find USB A or USB B, you can use the `hardware path`.
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/c2f5edbd-78dc-4a30-bbd1-015706e3dddf)
 
+### Kenwood TH-D74
 
+The Kenwood TH-D74 exposes two USB devices when connected to a computer via the micro-USB port. One USB device is a soundcard, and the other is a serial port.
 
+There sound card name is "TH-D74" and description contains "JVC KENWOOD TH-D74", there are no unique identifiers.
 
+There serial port manufacturer is "JVC KENWOOD" and description is "TH-D74", there are no unique identifiers.
+
+If you want to uniquely identify one of many TH-D74 devices use the `hardware path`: 
+
+`./find_devices -p --audio.path /sys/devices/pci0000:00/0000:00:14.0/usb1/1-1 --port.path /sys/devices/pci0000:00/0000:00:14.0/usb1/1-1`
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/3e7b5d6b-7e47-4d93-ac55-d911321d3c37)
