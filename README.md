@@ -41,6 +41,7 @@ The functionally of this utility is focused for ham radio use, to help with inte
   - [FTDI](#ftdi-usb-to-ttl-cable-and-ftdi-usb-serial-devices)
   - [u-blox](#u-blox-gps-devices)
   - [Microsoft Surface Go](#microsoft-surface-go-2)
+  - [DigiLink Nano](#digilink-nano)
 
 ## Motivation
 
@@ -353,7 +354,7 @@ The DigiLink Nano uses a Texas Instruments CODEC (PCM2912A) just as the Signalin
 
 Just like the Signalink, if you have only one DigiLink Nano soundcard connected, and no other USB soundcards that utilize Texas Instruments CODECs, then you can use the `name` or `description` properties like so:
 
-`./find_devices -p --audio.desc "TI USB audio CODEC" -i audio`
+`./find_devices -p --audio.desc "TI USB audio CODEC" -i audio` \
 `./find_devices -p --audio.name "USB audio CODEC" -i audio`
 
 The name and description are a little bit different across different Texas Instruments USB Codec parts, but I would not rely on this unless you have tested it yourself.
