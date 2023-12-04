@@ -42,6 +42,7 @@ The functionally of this utility is tailored for amateur radio use. It can help 
   - [u-blox](#u-blox-gps-devices)
   - [Microsoft Surface Go](#microsoft-surface-go-2)
   - [DigiLink Nano](#digilink-nano)
+  - [Icom ID-52](#icom-id-52)
 
 ## Motivation
 
