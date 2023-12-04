@@ -64,7 +64,8 @@ The functionally of this utility is focused for ham radio use, to help with inte
 
 - Only Linux is currently supported.
 - Only USB serial ports are currently supported.
-- Limited support for built in sound cards, like PCI based sound cards.
+- Limited support for built in sound cards, like PCI or PCH based sound cards.
+- Volume control is limited to soundcards with mono or stereo channels. 
 - Requires a Linux kernel with udev support.
 
 ## Basic example usage
