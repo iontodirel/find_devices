@@ -45,6 +45,7 @@ The functionally of this utility is tailored for amateur radio use. It can help 
   - [Icom ID-52](#icom-id-52)
   - [Icom IC-705](#icom-ic-705)
   - [Kenwood TH-D74](#kenwood-th-d74)
+  - [PicoAPRS v4](#picoaprs-v4)
 
 ## Motivation
 
@@ -409,3 +410,11 @@ If you want to uniquely identify one of many TH-D74 devices use the `hardware pa
 `./find_devices -p --audio.path /sys/devices/pci0000:00/0000:00:14.0/usb1/1-1 --port.path /sys/devices/pci0000:00/0000:00:14.0/usb1/1-1`
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/3e7b5d6b-7e47-4d93-ac55-d911321d3c37)
+
+### PicoAPRS v4
+
+This device exposes a serial port over its USBC-C port, when it is in KISS TNC mode. The implementation seems to be based on Silicon Labs CP2102N, and it has a unique serial number.
+
+Find it using: `./find_devices -p -i ports --port.serial e044f8266decec1193fbb20ead51a8b2`
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/2fc5cc0f-d3d8-457d-8685-5b48e92c832d)
