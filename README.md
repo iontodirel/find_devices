@@ -54,14 +54,15 @@ The functionally of this utility is tailored for amateur radio use. It can help 
   - Do not need to parse and manipulate text from logs, or parse text output from `aplay` and `arecord`
   - Output from this utility can directly be consumed by other programs (ex: via jq)
   - Structured output via JSON output. JSON output writing and printing for easy programmability, with tools like `jq`
-  - Project is structured in modular fashion, with pieces that can be reused
+  - Project is structured in modular fashion, with pieces that can be easily reused
     - Hackable for future or further modifications (ex: libusb support)
+    - No coupling between utlity classes
     - Command line parsing is not coupled to the audio and udev utility classes
 - Mapping between audio devices and serial ports
   - A big problem for hams can be finding a serial port that's on the same USB hub as an USB sound card
     - Easily find USB sound cards on the same hub as a USB serial port.  
 - Repeatable results, across system restarts, or when using generic sound cards with identical USB descriptors.
-  - A big problem for hams can be using multiple sound cards, which have the same USB descriptors
+  - A big problem for hams can be using multiple sound cards on the same compuper, which have the same USB descriptors
   - This tool aims at reliably and repeatedly finding devices and addresing them individually, even if the USB descriptors are all the same
 - No system modifications requirements, no need for udev rules, no need for root access
 
