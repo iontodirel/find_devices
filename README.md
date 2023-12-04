@@ -400,9 +400,9 @@ If you have to find USB A or USB B, you can use the `hardware path`.
 
 The Kenwood TH-D74 exposes two USB devices when connected to a computer via the micro-USB port. One USB device is a soundcard, and the other is a serial port.
 
-There sound card name is "TH-D74" and description contains "JVC KENWOOD TH-D74", there are no unique identifiers.
+The sound card name is "TH-D74" and description contains "JVC KENWOOD TH-D74", there are no unique identifiers.
 
-There serial port manufacturer is "JVC KENWOOD" and description is "TH-D74", there are no unique identifiers.
+The serial port manufacturer is "JVC KENWOOD" and description is "TH-D74", there are no unique identifiers.
 
 If you want to uniquely identify one of many TH-D74 devices use the `hardware path`: 
 
