@@ -43,6 +43,7 @@ The functionally of this utility is tailored for amateur radio use. It can help 
   - [Microsoft Surface Go](#microsoft-surface-go-2)
   - [DigiLink Nano](#digilink-nano)
   - [Icom ID-52](#icom-id-52)
+  - [Icom IC-705](#icom-iC-705)
 
 ## Motivation
 
@@ -377,6 +378,23 @@ The Icom ID-52 exposes one serial port when connected to a computer via the micr
 Here is an example to find one: `./find_devices -i ports -p --port.serial "15002168"`
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/9edb2efa-42d9-4e33-8813-e91d3c86a686)
+
+### Icom IC-705
+
+The Icom IC-705 exposes three USB devices when connected to a computer via the micro-USB port. One USB device is a soundcard, and two USB devices are serial ports.
+
+The two serial ports correspond to USB A and USB B, as referenced throught the IC-705 menus. Both serial ports have the same unique serial number, but they cannot be unique identified other than throught the `hardware path`. 
+
+The USB soundcard is implemented using a Texas Instruments CODEC, typically PCM2901 (some revisions might use a different one). The USB soundcard and the serial ports are on the same USB hub, as such the sound card can be found robustly using the serial port's serial number, even when multiple IC-705 are connected to the same computer.
+
+To find the sound card, first find the serial port's serial number by finding all the 705s: `./find_devices -p -i ports --port.desc "IC-705"`
+
+After you get the serial number for the device you want, find the sound card: `./find_devices --port.serial 12007514 -p -i audio -s port-siblings`
+
+If you have to find USB A or USB B, you can use the `hardware path`.
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/c2f5edbd-78dc-4a30-bbd1-015706e3dddf)
+
 
 
 
