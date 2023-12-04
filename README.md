@@ -347,4 +347,21 @@ Use a filter on the `stream name` to find it: `./find_devices -i audio -p --audi
 
 ![image](https://github.com/iontodirel/find_devices/assets/30967482/feefd269-33ea-43d2-a0a1-f815941b63ee)
 
+### DigiLink Nano
 
+The DigiLink Nano uses a Texas Instruments CODEC (PCM2912A) just as the Signalink. There are no unique USB descriptors to uniquely identify multiple DigiLink Nano devices connected to the same system.
+
+Just like the Signalink, if you have only one DigiLink Nano soundcard connected, and no other USB soundcards that utilize Texas Instruments CODECs, then you can use the `name` or `description` properties like so:
+
+`./find_devices -p --audio.desc "TI USB audio CODEC" -i audio`
+`./find_devices -p --audio.name "USB audio CODEC" -i audio`
+
+The name and description are a little bit different across different Texas Instruments USB Codec parts, but I would not rely on this unless you have tested it yourself.
+
+If you want to uniquely identify one of many DigiLink Nano devices use the `hardware path`:
+
+`./find_devices -p --audio.path /sys/devices/pci0000:00/0000:00:14.0/usb1/1-1`
+
+Because the Signalink uses a different TI CODEC part number, with different idProduct values and slightly different USB descriptors, you should be able to use a DigiLink Nano and a Signalink in the system, and uniquely identify each just by `name` or `description`. 
+
+![image](https://github.com/iontodirel/find_devices/assets/30967482/40b4e3cd-1bcc-4dff-8836-1b7c8032aaae)
