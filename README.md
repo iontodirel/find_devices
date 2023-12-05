@@ -32,6 +32,7 @@ The functionally of this utility is tailored for amateur radio use. It can help 
   - [Dependencies](#dependencies)
   - [Development](#development)
     - [Specifying Command Line Arguments When Debugging in VSCode](#specifying-command-line-arguments-when-debugging-in-vscode)
+    - [API Examples](#api-examples)
   - [Github Actions](#github-actions)
   - [Container](#container)
 - [Strategies for finding devices](#strategies-for-finding-devices)
@@ -232,6 +233,43 @@ An example of what you could specify in the .vscode/settings.json file:
         "/home/iontodirel/ham_docker_container/digirig_config.json"
     ]
 }
+```
+
+#### API Examples
+
+Audio API:
+
+```cpp
+// get all audio devices
+std::vector<audio_device_info> devices = get_audio_devices();
+
+// get the volume controls of the first audio device
+audio_device_volume_info volume;
+try_get_audio_device_volume(devices[0], volume);
+```
+
+Serial Ports API:
+
+```cpp
+// get all serial ports
+std::vector<serial_port> ports = get_serial_ports();
+```
+
+Mapping API:
+
+```cpp
+// get all serial ports
+std::vector<serial_port> ports = get_serial_ports();
+
+// get hardware device description for serial port 1
+device_description serial_port_description;
+try_get_device_description(ports[1], serial_port_description);
+
+// get audio device hardware description on the same USB hub as the serial port
+std::vector<device_description> device_descriptions = get_sibling_audio_devices(serial_port_description);
+
+// get the audio device
+std::vector<audio_device_info> devices = get_audio_devices(device_descriptions[0]);
 ```
 
 ### Github Actions
