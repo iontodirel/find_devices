@@ -72,7 +72,6 @@ The functionally of this utility is tailored for amateur radio use. It can help 
 - Only Linux is currently supported.
 - Only USB serial ports are currently supported.
 - Limited support for built in sound cards, like PCI or PCH based sound cards.
-- Volume control is limited to soundcards with mono or stereo channels. 
 - Requires a Linux kernel with udev support.
 
 ## Basic example usage
@@ -95,18 +94,20 @@ The functionally of this utility is tailored for amateur radio use. It can help 
             "controls": [
                 {
                     "name": "Speaker",
-                    "value": "100",
-                    "type": "playback"
-                },
-                {
-                    "name": "Mic",
-                    "value": "100",
-                    "type": "capture"
-                },
-                {
-                    "name": "Mic",
-                    "value": "100",
-                    "type": "playback"
+                    "channels": [
+                        {
+                            "name": "Front Left",
+                            "type": "playback",
+                            "volume": "100",
+                            "channel": "front_left"
+                        },
+                        {
+                            "name": "Front Right",
+                            "type": "playback",
+                            "volume": "75",
+                            "channel": "front_right"
+                        }
+                    ]
                 }
             ],
             "bus_number": "1",
@@ -143,20 +144,33 @@ The volume controls are also written to JSON:
 
 ```json
 "controls": [
-    {
-        "name": "Speaker",
-        "value": "100",
-        "type": "playback"
-    },
-    {
-        "name": "Mic",
-        "value": "100",
-        "type": "capture"
-    },
-    {
-        "name": "Mic",
-        "value": "100",
-        "type": "playback"
+   {
+       "name": "Master",
+       "channels": [
+           {
+               "name": "Front Left",
+               "type": "playback",
+               "volume": "88",
+               "channel": "front_left"
+           }
+       ]
+   },
+   {
+       "name": "Headphone",
+       "channels": [
+           {
+               "name": "Front Left",
+               "type": "playback",
+               "volume": "0",
+               "channel": "front_left"
+           },
+           {
+               "name": "Front Right",
+               "type": "playback",
+               "volume": "0",
+               "channel": "front_right"
+            }
+        ]
     }
 ]
 ```

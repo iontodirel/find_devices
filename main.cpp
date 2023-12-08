@@ -69,8 +69,8 @@ namespace
         if (file.is_open())
         {
             file << line << "\n";
-            file.close();   
-        }        
+            file.close();
+        }
     }
 
     bool try_parse_bool(std::string s, bool& b)
@@ -147,13 +147,16 @@ struct audio_device_filter
     int device = -1;
     int topology = -1;
     std::string path;
+    std::string control_name;
+    std::vector<std::string> audio_channels;
+    audio_device_type audio_channel_type;
 };
 
 struct serial_port_filter
 {
     std::string name_filter = "";
     std::string description_filter = "";
-    std::string manufacturer_filter = "";   
+    std::string manufacturer_filter = "";
     std::string device_serial_number = "";
     int bus = -1;
     int device = -1;
@@ -184,7 +187,7 @@ struct args
     serial_port_filter port_filter;
     bool verbose = true;
     bool help = false;
-    bool use_json = false; 
+    bool use_json = false;
     std::string output_file;
     bool disable_write_file = false;
     bool list_properties = false;
@@ -198,11 +201,12 @@ struct args
     bool command_line_has_errors = false;
     std::string command_line_error = "";
     bool show_version = false;
+    int volume = -1;
 };
 
 struct search_result
 {
-    std::vector<std::pair<audio_device_volume, device_description>> devices;
+    std::vector<std::pair<audio_device_volume_info, device_description>> devices;
     std::vector<std::pair<serial_port, device_description>> ports;
 };
 
@@ -316,9 +320,9 @@ std::string to_json(const search_result& result)
         s.append("\n");
         i++;
     }
-    
+
     s += "    ],\n";
-    s += "    \"serial_ports\": [\n";    
+    s += "    \"serial_ports\": [\n";
 
     size_t j = 0;
     for (const auto& p : result.ports)
@@ -329,7 +333,7 @@ std::string to_json(const search_result& result)
         s += to_json(p.second, false, 2);
         s += "\n";
         s += "        }";
-         if ((j + 1) < result.ports.size())
+        if ((j + 1) < result.ports.size())
         {
             s.append(",");
         }
@@ -491,7 +495,7 @@ std::vector<std::pair<audio_device_info, device_description>> filter_audio_devic
 std::vector<std::pair<serial_port, device_description>> filter_serial_ports(const args& args, const std::vector<serial_port>& ports);
 std::vector<audio_device_info> get_sibling_audio_devices(const std::vector<std::pair<serial_port, device_description>>& ports);
 std::vector<serial_port> get_sibling_serial_ports(const std::vector<std::pair<audio_device_info, device_description>>& devices);
-std::vector<std::pair<audio_device_volume, device_description>> map_device_to_volume(const std::vector<std::pair<audio_device_info, device_description>>& devices);
+std::vector<std::pair<audio_device_volume_info, device_description>> map_device_to_volume(const std::vector<std::pair<audio_device_info, device_description>>& devices);
 search_result search(const args& args);
 bool has_audio_device_description_filter(const args& args);
 bool has_serial_port_description_filter(const args& args);
@@ -522,14 +526,14 @@ std::vector<std::pair<serial_port, device_description>> filter_serial_ports(cons
 {
     std::vector<std::pair<serial_port, device_description>> serial_ports;
     for (serial_port p : ports)
-    {        
+    {
         if (!match_port(p, args.port_filter))
             continue;
         device_description desc;
         if (try_get_device_description(p, desc))
         {
             if (!match_device(desc, args.port_filter))
-                 continue;
+                continue;
         }
         else if (has_serial_port_description_filter(args))
             continue;
@@ -577,12 +581,12 @@ std::vector<serial_port> get_sibling_serial_ports(const std::vector<std::pair<au
     return ports;
 }
 
-std::vector<std::pair<audio_device_volume, device_description>> map_device_to_volume(const std::vector<std::pair<audio_device_info, device_description>>& devices)
+std::vector<std::pair<audio_device_volume_info, device_description>> map_device_to_volume(const std::vector<std::pair<audio_device_info, device_description>>& devices)
 {
-    std::vector<std::pair<audio_device_volume, device_description>> devices_volumes;
+    std::vector<std::pair<audio_device_volume_info, device_description>> devices_volumes;
     for (const auto& device : devices)
     {
-        audio_device_volume device_volume;
+        audio_device_volume_info device_volume;
         try_get_audio_device_volume(device.first, device_volume);
         devices_volumes.push_back(std::make_pair(device_volume, device.second));
     }
@@ -600,7 +604,7 @@ search_result search(const args& args)
     else if (args.search_mode == search_mode::port_siblings)
     {
         result.ports = filter_serial_ports(args, get_serial_ports());
-        result.devices = map_device_to_volume(filter_audio_devices(args, get_sibling_audio_devices(result.ports)));        
+        result.devices = map_device_to_volume(filter_audio_devices(args, get_sibling_audio_devices(result.ports)));
     }
     else if (args.search_mode == search_mode::audio_siblings)
     {
@@ -614,7 +618,7 @@ search_result search(const args& args)
 bool has_audio_device_description_filter(const args& args)
 {
     return (args.audio_filter.bus != -1 ||
-        args.audio_filter.device != -1 || 
+        args.audio_filter.device != -1 ||
         !args.audio_filter.path.empty() ||
         args.audio_filter.topology != -1);
 }
@@ -622,7 +626,7 @@ bool has_audio_device_description_filter(const args& args)
 bool has_serial_port_description_filter(const args& args)
 {
     return (args.port_filter.bus != -1 ||
-        args.port_filter.device != -1 || 
+        args.port_filter.device != -1 ||
         !args.port_filter.path.empty() ||
         args.port_filter.topology != -1);
 }
@@ -662,18 +666,18 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "audio.device", {"audio.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.device = result["audio.device"].as<int>(); }}},
         { "audio.topology", {"audio.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.topology = result["audio.topology"].as<int>(); }}},
         { "audio.path", {"audio.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.path = result["audio.path"].as<std::string>(); }}},
-        { "port.name", {"port.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.name_filter = result["port.name"].as<std::string>(); }}},
-        { "port.desc", {"port.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.description_filter = result["port.desc"].as<std::string>(); }}},
-        { "port.bus", {"port.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.bus"].as<std::string>(), args.port_filter.bus); }}},
-        { "port.device", {"port.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.device"].as<std::string>(), args.port_filter.device); }}},
-        { "port.topology", {"port.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.topology"].as<std::string>(), args.port_filter.topology); }}},
-        { "port.path", {"port.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.path = result["port.path"].as<std::string>(); }}},
-        { "port.serial", {"port.serial", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.device_serial_number = result["port.serial"].as<std::string>(); }}},
-        { "port.mfn", {"port.mfn", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.manufacturer_filter = result["port.mfn"].as<std::string>(); }}}
+         { "port.name", {"port.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.name_filter = result["port.name"].as<std::string>(); }}},
+         { "port.desc", {"port.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.description_filter = result["port.desc"].as<std::string>(); }}},
+         { "port.bus", {"port.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.bus"].as<std::string>(), args.port_filter.bus); }}},
+         { "port.device", {"port.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.device"].as<std::string>(), args.port_filter.device); }}},
+         { "port.topology", {"port.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.topology"].as<std::string>(), args.port_filter.topology); }}},
+         { "port.path", {"port.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.path = result["port.path"].as<std::string>(); }}},
+         { "port.serial", {"port.serial", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.device_serial_number = result["port.serial"].as<std::string>(); }}},
+         { "port.mfn", {"port.mfn", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.manufacturer_filter = result["port.mfn"].as<std::string>(); }}}
     };
 
     cxxopts::Options options("", "");
-    
+
     cxxopts::OptionAdder option_group = options.allow_unrecognised_options().add_options();
 
     for (const auto& command : command_map)
@@ -685,11 +689,11 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         else
         {
             option_group(command.second.command_line_arg_name, "");
-        }        
+        }
     }
 
     cxxopts::ParseResult result;
-    
+
     try
     {
         result = options.parse(argc, argv);
@@ -705,11 +709,11 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         args.command_line_error = "Error parsing command line.";
         args.command_line_has_errors = true;
         return false;
-    }    
+    }
 
     for (const auto& arg : result.arguments())
     {
-        args.command_line_args.insert({arg.key(), arg.value()});
+        args.command_line_args.insert({ arg.key(), arg.value() });
     }
 
     std::vector<std::string> unmatched = result.unmatched();
@@ -745,7 +749,7 @@ void read_settings(args& args)
 {
     if (args.ignore_config)
         return;
-    
+
     std::string config_file = args.config_file;
 
     if (args.config_file.empty())
@@ -836,7 +840,7 @@ void read_settings(args& args)
             if (!args.command_line_args.contains("port.name"))
                 args.port_filter.name_filter = port_match.value("name", "");
             if (!args.command_line_args.contains("port.desc"))
-                args.port_filter.description_filter = port_match.value("desc", "");     
+                args.port_filter.description_filter = port_match.value("desc", "");
             if (!args.command_line_args.contains("port.bus"))
                 try_parse_number(port_match.value("bus", ""), args.port_filter.bus);
             if (!args.command_line_args.contains("port.device"))
@@ -900,13 +904,13 @@ int main(int argc, char* argv[])
 void print_usage()
 {
     std::string usage =
-        "find_devices - audio device and serial ports finding utility\n"        
+        "find_devices - audio device and serial ports finding utility\n"
         "version "
-        STRINGIFY(FIND_DEVICES_VERSION)        
-        #ifdef GIT_HASH        
+        STRINGIFY(FIND_DEVICES_VERSION)
+#ifdef GIT_HASH        
         " "
         STRINGIFY(GIT_HASH)
-        #endif        
+#endif        
         "\n"
         "(C) 2023 Ion Todirel\n"
         "\n"
@@ -927,6 +931,14 @@ void print_usage()
         "    --audio.device <number>        search filter: audio device number\n"
         "    --audio.path <path>            search filter: audio device hardware system path\n"
         "    --audio.topology <number>      search filter: the depth of the audio device topology, in the device tree\n"
+        "    --audio.control <name>         used to set a value on the audio device; this property is used to select the audio control to set\n"
+        "    --audio.channels <channels>    used to set a value on the audio device; this property is used to select the audio channels to set\n"
+        "    --audio.volume <volume>        used to set a value on the audio device; this property is used to set the audio volume\n"
+        "                                   on all devices that match --audio.control, --audio.channels and --audio.channel_type.\n"
+        "    --audio.channel_type <type>    used to set a value on the audio device; this property is used to select the channel type\n"
+        "                                       playback - playback only\n"
+        "                                       capture - capture only\n"
+        "                                       all\n"
         "    --port.name <name>             search filter: partial or complete name of the serial port\n"
         "    --port.desc <description>      search filter: partial or complete description of the serial port\n"
         "    --port.bus <number>            search filter: serial port bus number\n"
@@ -934,7 +946,7 @@ void print_usage()
         "    --port.topology <number>       search filter: the depth of the serial port device topology, in the device tree\n"
         "    --port.path <path>             search filter: serial port hardware system path\n"
         "    --port.serial <serial>         search filter: partial or complete serial port device serial number\n"
-        "    --port.mfn <name>              search filter: partial or complete serial port manufacturer name\n"        
+        "    --port.mfn <name>              search filter: partial or complete serial port manufacturer name\n"
         "    -v, --verbose                  enable detailed printing to stdout\n"
         "    --no-verbose                   disable detailed printing to stdout\n"
         "    --no-stdout                    don't print to stdout\n"
@@ -979,6 +991,10 @@ void print_usage()
         "    find_devices -h\n"
         "    find_devices -j -o output.json\n"
         "    find_devices -c digirig_config.json\n"
+        "    find_devices --audio.control Speakers --audio.channels=\"Front Left, Front Center\" --audio.volume 60 --audio.channel_type=capture\n"
+        "    find_devices --audio.control Speakers --audio.channels=\"Front Left\" --audio.volume 80 --audio.channel_type=playback\n"
+        "    find_devices --audio.volume 50 --audio.channel_type=playback\n"
+        "    find_devices --audio.control Speakers --audio.channels=\"Front Left, Front Center\" --audio.volume 50\n"
         "\n"
         "Defaults:\n"
         "    --verbose\n"
@@ -1015,7 +1031,7 @@ void print(args& args, search_result& result)
         size_t i = 1;
         for (const auto& d : result.devices)
         {
-            if (!args.verbose )
+            if (!args.verbose)
                 printf("%s\n", d.first.audio_device.plughw_id.c_str());
             else
             {
@@ -1039,12 +1055,17 @@ void print(args& args, search_result& result)
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "description");
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.audio_device.description);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "stream name");
-                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.audio_device.stream_name);                
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.first.audio_device.stream_name);
 
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "volume controls");
                     for (size_t k = 0; k < d.first.controls.size(); k++)
                     {
-                        print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}%", d.first.controls[k].volume);
+                        for (size_t m = 0; m < d.first.controls[k].channels.size(); m++)
+                        {
+                            print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}%", d.first.controls[k].channels[m].volume);
+                            if ((m + 1) < d.first.controls[k].channels.size())
+                                print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), ", ");
+                        }
                         if ((k + 1) < d.first.controls.size())
                             print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), ", ");
                     }
@@ -1053,7 +1074,7 @@ void print(args& args, search_result& result)
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "bus");
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.bus_number);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "device");
-                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.device_number);                
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.device_number);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "product");
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", d.second.product);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "idProduct");
@@ -1095,22 +1116,22 @@ void print(args& args, search_result& result)
                 fmt::print(" - ");
                 print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::chocolate), "{}", p.first.description);
                 fmt::println("");
-    
+
                 if (args.list_properties)
                 {
                     fmt::println("");
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "name");
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.name);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "manufacturer");
-                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.manufacturer);                
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.manufacturer);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "description");
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.description);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "sn");
-                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.device_serial_number);                
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.first.device_serial_number);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "bus");
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.bus_number);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "device");
-                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.device_number);                
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.device_number);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "product");
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.product);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "idProduct");
@@ -1135,19 +1156,19 @@ void print(args& args, search_result& result)
 }
 
 void print_to_file(const args& args, const std::string& json)
-{    
+{
     if (args.disable_write_file)
         return;
-    
+
     std::string file_name = args.output_file;
-    
+
     if (args.output_file.empty())
     {
         try_find_new_filename(std::filesystem::current_path() / "output.json", file_name);
     }
-    
+
     if (std::filesystem::exists(file_name))
-        std::filesystem::remove(file_name);        
+        std::filesystem::remove(file_name);
 
     write_line_to_file(file_name, json);
 
@@ -1181,13 +1202,13 @@ int list_devices(args& args)
 void print_version()
 {
     printf(
-        "find_devices - audio device and serial ports finding utility\n"        
+        "find_devices - audio device and serial ports finding utility\n"
         "version "
         STRINGIFY(FIND_DEVICES_VERSION)
-        #ifdef GIT_HASH
-        " "            
+#ifdef GIT_HASH
+        " "
         STRINGIFY(GIT_HASH)
-        #endif        
+#endif        
         "\n"
         "(C) 2023 Ion Todirel\n"
         "\n");

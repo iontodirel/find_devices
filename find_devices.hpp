@@ -105,22 +105,49 @@ std::string to_json(const std::vector<audio_device_info>& devices);
 //                                                                  //
 // **************************************************************** //
 
-struct audio_device_volume_control
+enum class audio_device_channel_id
+{
+    front_left,
+    front_right,
+    front_center,
+    rear_left,
+    rear_right,
+    rear_center,
+    woofer,
+    side_left,
+    side_right,
+    mono,
+    none
+};
+
+struct audio_device_channel
 {
     std::string name;
     int volume = 0;
-    bool playback = false;
-    bool capture = false;
+    audio_device_type type = audio_device_type::uknown;
+    audio_device_channel_id channel = audio_device_channel_id::none;
 };
 
-struct audio_device_volume
+struct audio_device_volume_control
+{
+    std::string name;
+    std::vector<audio_device_channel> channels;
+};
+
+struct audio_device_volume_info
 {
     audio_device_info audio_device;
     std::vector<audio_device_volume_control> controls;
 };
 
-std::string to_json(const audio_device_volume& d, bool wrapping_object = true, int tabs = 0);
-bool try_get_audio_device_volume(const audio_device_info& device, audio_device_volume& volume);
+bool try_get_audio_device_volume(const audio_device_info& device, audio_device_volume_info& volume);
+bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel& channel);
+bool try_set_audio_device_volume(const audio_device_info& device, const audio_device_volume_control& control, const audio_device_channel& channel);
+bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel_id& channel, const audio_device_type& channel_type, int value);
+
+std::string to_json(const audio_device_volume_info& d, bool wrapping_object = true, int tabs = 0);
+
+std::string to_string(const audio_device_channel_id& type);
 
 // **************************************************************** //
 //                                                                  //
@@ -132,7 +159,7 @@ struct serial_port
 {
     std::string name;
     std::string description;
-    std::string manufacturer;    
+    std::string manufacturer;
     std::string device_serial_number;
 };
 

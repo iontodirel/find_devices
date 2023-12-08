@@ -67,7 +67,7 @@ void insert_tabs(std::string& s, int tabs, int tab_spaces)
     std::string line;
     while (std::getline(iss, line))
     {
-       result += padded + line + "\n";
+        result += padded + line + "\n";
     }
 
     if (result.length() > 0)
@@ -105,6 +105,12 @@ bool try_get_audio_device(int card_id, int device_id, snd_ctl_t* ctl_handle, aud
 bool can_use_audio_device(const audio_device_info& device, snd_pcm_stream_t mode);
 bool can_use_audio_device(const audio_device_info& device);
 bool test_audio_device(const audio_device_info& device);
+audio_device_channel_id parse_audio_device_channel_id(int channel_id);
+int parse_audio_device_channel_type(audio_device_channel_id type);
+int get_playback_channel_volume(snd_mixer_elem_t* elem, int channel_id);
+int get_capture_channel_volume(snd_mixer_elem_t* elem, int channel_id);
+void set_playback_channel_volume(snd_mixer_elem_t* elem, int channel_id, int value);
+void set_capture_channel_volume(snd_mixer_elem_t* elem, int channel_id, int value);
 
 audio_device_type operator|(const audio_device_type& l, const audio_device_type& r)
 {
@@ -141,6 +147,37 @@ std::string to_string(const audio_device_info& d)
         "', name: '" + d.name +
         "', desc: '" + d.description +
         "', type: '" + to_string(d.type) + "'";
+}
+
+std::string to_string(const audio_device_channel_id& type)
+{
+    switch (type)
+    {
+    case audio_device_channel_id::front_left:
+        return "front_left";
+    case audio_device_channel_id::front_right:
+        return "front_right";
+    case audio_device_channel_id::front_center:
+        return "front_center";
+    case audio_device_channel_id::rear_left:
+        return "rear_left";
+    case audio_device_channel_id::rear_right:
+        return "rear_right";
+    case audio_device_channel_id::rear_center:
+        return "rear_center";
+    case audio_device_channel_id::woofer:
+        return "woofer";
+    case audio_device_channel_id::side_left:
+        return "side_left";
+    case audio_device_channel_id::side_right:
+        return "side_right";
+    case audio_device_channel_id::mono:
+        return "mono";
+    case audio_device_channel_id::none:
+        return "none";
+    default:
+        return "";
+    }
 }
 
 std::string to_json(const std::vector<audio_device_info>& devices)
@@ -247,7 +284,7 @@ std::vector<audio_device_info> get_audio_devices(int card_id)
         devices.push_back(device);
     }
 
-    snd_ctl_close(ctl_handle);    
+    snd_ctl_close(ctl_handle);
 
     return devices;
 }
@@ -276,7 +313,7 @@ bool try_get_audio_device(int card_id, int device_id, snd_ctl_t* ctl_handle, aud
     snd_pcm_info_set_stream(pcm_info, SND_PCM_STREAM_CAPTURE);
 
     err = snd_ctl_pcm_info(ctl_handle, pcm_info);
-    
+
     if (err < 0)
     {
         snd_pcm_info_set_device(pcm_info, device_id);
@@ -284,7 +321,7 @@ bool try_get_audio_device(int card_id, int device_id, snd_ctl_t* ctl_handle, aud
         snd_pcm_info_set_stream(pcm_info, SND_PCM_STREAM_PLAYBACK);
 
         err = snd_ctl_pcm_info(ctl_handle, pcm_info);
-        
+
         if (err < 0)
         {
             return false;
@@ -301,29 +338,29 @@ bool try_get_audio_device(int card_id, int device_id, snd_ctl_t* ctl_handle, aud
 
     device.card_id = card_id;
     device.device_id = device_id;
-                
+
     // snd_card_get_name and snd_card_get_longname are implemented here:
     // https://github.com/torvalds/linux/blob/master/sound/usb/card.c
-    
+
     char* name = nullptr;
     err = snd_card_get_name(card_id, &name);
     if (err != 0)
         device.name = "Unknown";
     else
         device.name = name;
-    
+
     device.stream_name = snd_pcm_info_get_name(pcm_info);
-    
+
     char* long_name = nullptr;
     err = snd_card_get_longname(card_id, &long_name);
     if (err != 0)
         device.description = "Unknown";
     else
         device.description = long_name;
-    
+
     device.hw_id = fmt::format("hw:{},{}", device.card_id, device.device_id);
     device.plughw_id = fmt::format("plughw:{},{}", device.card_id, device.device_id);
-        
+
     // Use snd_pcm_info_get_subdevices_avail, snd_pcm_info_set_subdevice, snd_ctl_pcm_info and
     // snd_pcm_info_get_subdevice_name to enumerate all subdevices
     // example here: https://github.com/bear24rw/alsa-utils/blob/master/aplay/aplay.c
@@ -335,7 +372,7 @@ bool try_get_audio_device(int card_id, int device_id, snd_ctl_t* ctl_handle, aud
         snd_pcm_info_set_stream(pcm_info, SND_PCM_STREAM_PLAYBACK);
 
         err = snd_ctl_pcm_info(ctl_handle, pcm_info);
-        
+
         if (err >= 0)
         {
             device.type = device.type | audio_device_type::playback;
@@ -347,7 +384,7 @@ bool try_get_audio_device(int card_id, int device_id, snd_ctl_t* ctl_handle, aud
 
 bool can_use_audio_device(const audio_device_info& device, snd_pcm_stream_t mode)
 {
-    snd_pcm_t *handle;
+    snd_pcm_t* handle;
 
     int err = snd_pcm_open(&handle, device.hw_id.c_str(), mode, SND_PCM_NONBLOCK);
 
@@ -385,7 +422,7 @@ bool can_use_audio_device(const audio_device_info& device)
     {
         return can_use_audio_device(device, SND_PCM_STREAM_PLAYBACK);
     }
-    else if (enum_device_type_has_flag(device.type, audio_device_type::capture) && 
+    else if (enum_device_type_has_flag(device.type, audio_device_type::capture) &&
         enum_device_type_has_flag(device.type, audio_device_type::playback))
     {
         return can_use_audio_device(device, SND_PCM_STREAM_CAPTURE) &&
@@ -402,50 +439,93 @@ bool can_use_audio_device(const audio_device_info& device)
 //                                                                  //
 // **************************************************************** //
 
-bool try_get_audio_device_volume(const audio_device_info& device, audio_device_volume& volume)
+bool try_get_audio_device_volume(const audio_device_info& device, audio_device_volume_info& volume)
 {
     volume.audio_device = device;
     volume.controls.clear();
 
-    snd_mixer_t *handle;
-    snd_mixer_selem_id_t *sid;
+    int err;
+    snd_mixer_t* handle;
+    snd_mixer_selem_id_t* sid;
 
     snd_mixer_open(&handle, 0);
-    snd_mixer_attach(handle, ("hw:" + std::to_string(device.card_id)).c_str());
-    snd_mixer_selem_register(handle, nullptr, nullptr);
-    snd_mixer_load(handle);
+
+    // NOTE: can get the error message with snd_strerror(err)
+
+    if ((err = snd_mixer_open(&handle, 0)) < 0)
+    {
+        return false;
+    }
+
+    if ((err = snd_mixer_attach(handle, ("hw:" + std::to_string(device.card_id)).c_str())) < 0)
+    {
+        snd_mixer_close(handle);
+        return false;
+    }
+
+    if ((err = snd_mixer_selem_register(handle, nullptr, nullptr)) < 0)
+    {
+        snd_mixer_close(handle);
+        return false;
+    }
+
+    if ((err = snd_mixer_load(handle)) < 0)
+    {
+        snd_mixer_close(handle);
+        return false;
+    }
+
     snd_mixer_selem_id_malloc(&sid);
     snd_mixer_selem_id_set_index(sid, 0);
 
-    audio_device_volume_control volume_control;
-
     snd_mixer_elem_t* elem = nullptr;
+
     for (elem = snd_mixer_first_elem(handle); elem; elem = snd_mixer_elem_next(elem))
     {
         snd_mixer_selem_get_id(elem, sid);
 
+        if (!snd_mixer_selem_has_capture_volume(elem) && !snd_mixer_selem_has_playback_volume(elem))
+        {
+            continue;
+        }
+
+        audio_device_volume_control volume_control;
+
         volume_control.name = snd_mixer_selem_get_name(elem);
 
-        long min = 0, max = 100, value = 0;
-        int volumePercent = 0;
-        if (snd_mixer_selem_has_capture_volume(elem))
+        for (int channel_id = 0; channel_id <= SND_MIXER_SCHN_REAR_CENTER; channel_id++)
         {
-            snd_mixer_selem_get_capture_volume_range(elem, &min, &max);
-            snd_mixer_selem_get_capture_volume(elem, SND_MIXER_SCHN_MONO, &value);
-            volume_control.volume = (value - min) * 100 / (max - min);
-            volume_control.playback = false;
-            volume_control.capture = true;
-            volume.controls.push_back(volume_control);
+            if (!snd_mixer_selem_has_playback_channel(elem, (snd_mixer_selem_channel_id_t)channel_id) &&
+                !snd_mixer_selem_has_capture_channel(elem, (snd_mixer_selem_channel_id_t)channel_id))
+                continue;
+
+            audio_device_channel channel;
+
+            channel.name = snd_mixer_selem_channel_name((snd_mixer_selem_channel_id_t)channel_id);
+            channel.channel = parse_audio_device_channel_id(channel_id);
+
+            long min = 0, max = 100, value = 0;
+
+            if (snd_mixer_selem_has_playback_volume(elem) && snd_mixer_selem_has_playback_channel(elem, (snd_mixer_selem_channel_id_t)channel_id))
+            {
+                channel.type = audio_device_type::playback;
+                channel.volume = get_playback_channel_volume(elem, channel_id);
+                volume_control.channels.push_back(channel);
+            }
+            if (snd_mixer_selem_has_capture_volume(elem) && snd_mixer_selem_has_capture_channel(elem, (snd_mixer_selem_channel_id_t)channel_id))
+            {
+                channel.type = audio_device_type::capture;
+                channel.volume = get_capture_channel_volume(elem, channel_id);
+                volume_control.channels.push_back(channel);
+            }
+
+            // if (channel_id == 0 && snd_mixer_selem_is_playback_mono(elem))
+            // {
+            //     break;
+            // }
         }
-        if (snd_mixer_selem_has_playback_volume(elem))
-        {
-            snd_mixer_selem_get_playback_volume_range(elem, &min, &max);
-            snd_mixer_selem_get_playback_volume(elem, SND_MIXER_SCHN_MONO, &value);
-            volume_control.volume = (value - min) * 100 / (max - min);
-            volume_control.playback = true;
-            volume_control.capture = false;
-            volume.controls.push_back(volume_control);
-        }
+
+        volume.controls.push_back(volume_control);
     }
 
     snd_mixer_selem_id_free(sid);
@@ -454,9 +534,187 @@ bool try_get_audio_device_volume(const audio_device_info& device, audio_device_v
     return true;
 }
 
-std::string to_json(const audio_device_volume& d, bool wrapping_object, int tabs);
+bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel& channel)
+{
+    return try_set_audio_device_volume(device, control_name, channel.channel, channel.type, channel.volume);
+}
 
-std::string to_json(const audio_device_volume& d, bool wrapping_object, int tabs)
+bool try_set_audio_device_volume(const audio_device_info& device, const audio_device_volume_control& control, const audio_device_channel& channel)
+{
+    return try_set_audio_device_volume(device, control.name, channel.channel, channel.type, channel.volume);
+}
+
+bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel_id& channel, const audio_device_type& channel_type, int volume)
+{
+    bool result = true;
+
+    int err;
+    snd_mixer_t* handle;
+    snd_mixer_selem_id_t* sid;
+
+    snd_mixer_open(&handle, 0);
+
+    // NOTE: can get the error message with snd_strerror(err)
+
+    if ((err = snd_mixer_open(&handle, 0)) < 0)
+    {
+        return false;
+    }
+
+    if ((err = snd_mixer_attach(handle, ("hw:" + std::to_string(device.card_id)).c_str())) < 0)
+    {
+        snd_mixer_close(handle);
+        return false;
+    }
+
+    if ((err = snd_mixer_selem_register(handle, nullptr, nullptr)) < 0)
+    {
+        snd_mixer_close(handle);
+        return false;
+    }
+
+    if ((err = snd_mixer_load(handle)) < 0)
+    {
+        snd_mixer_close(handle);
+        return false;
+    }
+
+    snd_mixer_selem_id_malloc(&sid);
+    snd_mixer_selem_id_set_index(sid, 0);
+
+    snd_mixer_elem_t* elem = nullptr;
+
+    for (elem = snd_mixer_first_elem(handle); elem; elem = snd_mixer_elem_next(elem))
+    {
+        snd_mixer_selem_get_id(elem, sid);
+
+        std::string element_name = snd_mixer_selem_get_name(elem);
+        int channel_id = parse_audio_device_channel_type(channel);
+
+        if (element_name != control_name)
+        {
+            continue;
+        }
+
+        if (channel_type == audio_device_type::playback && snd_mixer_selem_has_playback_volume(elem) && snd_mixer_selem_has_playback_channel(elem, (snd_mixer_selem_channel_id_t)channel_id))
+        {
+            set_playback_channel_volume(elem, channel_id, volume);
+            break;
+        }
+        else if (channel_type == audio_device_type::capture && snd_mixer_selem_has_capture_volume(elem) && snd_mixer_selem_has_capture_channel(elem, (snd_mixer_selem_channel_id_t)channel_id))
+        {
+            set_capture_channel_volume(elem, channel_id, volume);
+            break;
+        }
+        else
+        {
+            result = false;
+            break;
+        }
+    }
+
+    snd_mixer_selem_id_free(sid);
+    snd_mixer_close(handle);
+
+    return result;
+}
+
+audio_device_channel_id parse_audio_device_channel_id(int channel_id)
+{
+    switch (channel_id)
+    {
+    case 0:
+        // if (snd_mixer_selem_has_playback_channel(elem, SND_MIXER_SCHN_MONO))
+        // {
+        //     channel.channel = audio_device_channel_type::mono;
+        // }
+        // else
+        // {
+        return audio_device_channel_id::front_left;
+        //}
+    case 1:
+        return audio_device_channel_id::front_right;
+    case 2:
+        return audio_device_channel_id::rear_left;
+    case 3:
+        return audio_device_channel_id::rear_right;
+    case 4:
+        return audio_device_channel_id::front_center;
+    case 5:
+        return audio_device_channel_id::woofer;
+    case 6:
+        return audio_device_channel_id::side_left;
+    case 7:
+        return audio_device_channel_id::side_right;
+    case 8:
+        return audio_device_channel_id::rear_center;
+    default:
+        return audio_device_channel_id::none;
+    }
+}
+
+int parse_audio_device_channel_type(audio_device_channel_id type)
+{
+    switch (type)
+    {
+    case audio_device_channel_id::front_left:
+        return 0;
+    case audio_device_channel_id::front_right:
+        return 1;
+    case audio_device_channel_id::rear_left:
+        return 2;
+    case audio_device_channel_id::rear_right:
+        return 3;
+    case audio_device_channel_id::front_center:
+        return 4;
+    case audio_device_channel_id::woofer:
+        return 5;
+    case audio_device_channel_id::side_left:
+        return 6;
+    case audio_device_channel_id::side_right:
+        return 7;
+    case audio_device_channel_id::rear_center:
+        return 8;
+    default:
+        return 0;
+    }
+}
+
+int get_playback_channel_volume(snd_mixer_elem_t* elem, int channel_id)
+{
+    long min = 0, max = 100, value = 0;
+    snd_mixer_selem_get_playback_volume_range(elem, &min, &max);
+    snd_mixer_selem_get_playback_volume(elem, (snd_mixer_selem_channel_id_t)channel_id, &value);
+    return ((value - min) * 100 / (max - min));
+}
+
+void set_playback_channel_volume(snd_mixer_elem_t* elem, int channel_id, int value)
+{
+    long min = 0, max = 100;
+    snd_mixer_selem_get_playback_volume_range(elem, &min, &max);
+    long value_adjusted = ((value * (max - min)) / 100) + min;
+    snd_mixer_selem_set_playback_volume(elem, (snd_mixer_selem_channel_id_t)channel_id, value_adjusted);
+}
+
+int get_capture_channel_volume(snd_mixer_elem_t* elem, int channel_id)
+{
+    long min = 0, max = 100, value = 0;
+    snd_mixer_selem_get_capture_volume_range(elem, &min, &max);
+    snd_mixer_selem_get_capture_volume(elem, (snd_mixer_selem_channel_id_t)channel_id, &value);
+    return ((value - min) * 100 / (max - min));
+}
+
+void set_capture_channel_volume(snd_mixer_elem_t* elem, int channel_id, int value)
+{
+    long min = 0, max = 100;
+    snd_mixer_selem_get_capture_volume_range(elem, &min, &max);
+    long value_adjusted = ((value * (max - min)) / 100) + min;
+    snd_mixer_selem_set_capture_volume(elem, (snd_mixer_selem_channel_id_t)channel_id, value_adjusted);
+}
+
+std::string to_json(const audio_device_volume_info& d, bool wrapping_object, int tabs);
+
+std::string to_json(const audio_device_volume_info& d, bool wrapping_object, int tabs)
 {
     std::string s;
     if (wrapping_object)
@@ -475,12 +733,20 @@ std::string to_json(const audio_device_volume& d, bool wrapping_object, int tabs
     {
         s.append("        {\n");
         s.append("            \"name\": \"" + d.controls[i].name + "\",\n");
-        s.append("            \"value\": \"" + std::to_string(d.controls[i].volume) + "\",\n");
-        s.append("            \"type\": ");
-        if (d.controls[i].playback)
-            s.append("\"playback\"\n");
-        if (d.controls[i].capture)
-            s.append("\"capture\"\n");
+        s.append("            \"channels\": [\n");
+        for (size_t j = 0; j < d.controls[i].channels.size(); j++)
+        {
+            s.append("                {\n");
+            s.append("                    \"name\": \"" + d.controls[i].channels[j].name + "\",\n");
+            s.append("                    \"type\": \"" + to_string(d.controls[i].channels[j].type) + "\",\n");
+            s.append("                    \"volume\": \"" + std::to_string(d.controls[i].channels[j].volume) + "\",\n");
+            s.append("                    \"channel\": \"" + to_string(d.controls[i].channels[j].channel) + "\"\n");
+            s.append("                }");
+            if ((j + 1) < d.controls[i].channels.size())
+                s.append(",");
+            s.append("\n");
+        }
+        s.append("            ]\n");
         s.append("        }");
         if ((i + 1) < d.controls.size())
             s.append(",");
@@ -583,7 +849,7 @@ std::vector<serial_port> get_serial_ports()
     // Only supports USB serial ports
     // Consider using libusb, or USB sysfs in the future
     // Could there be other types of serial ports that are not tty?
-    
+
     udev_enumerate_add_match_subsystem(enumerate, "tty");
 
     udev_enumerate_scan_devices(enumerate);
@@ -622,7 +888,7 @@ std::vector<serial_port> get_serial_ports()
         const char* manufacturer = udev_device_get_sysattr_value(usb_dev, "manufacturer");
         const char* product = udev_device_get_sysattr_value(usb_dev, "product");
         const char* serial = udev_device_get_sysattr_value(usb_dev, "serial");
-        
+
         serial_port port;
 
         if (manufacturer != nullptr)
@@ -633,7 +899,7 @@ std::vector<serial_port> get_serial_ports()
             port.description = product;
         if (devnode != nullptr)
             port.name = devnode;
-        
+
         ports.push_back(port);
 
         udev_device_unref(dev);
@@ -710,7 +976,7 @@ bool try_get_device_description(const audio_device_info& d, device_description& 
     return try_get_device_description([&d](udev_enumerate* enumerate) {
         udev_enumerate_add_match_subsystem(enumerate, "sound");
         udev_enumerate_add_match_sysname(enumerate, fmt::format("card{}", d.card_id).c_str());
-    }, desc);
+        }, desc);
 }
 
 bool try_get_device_description(const serial_port& p, device_description& desc)
@@ -718,7 +984,7 @@ bool try_get_device_description(const serial_port& p, device_description& desc)
     return try_get_device_description([&p](udev_enumerate* enumerate) {
         udev_enumerate_add_match_subsystem(enumerate, "tty");
         udev_enumerate_add_match_property(enumerate, "DEVNAME", p.name.c_str());
-    }, desc);
+        }, desc);
 }
 
 bool try_get_device_description(std::function<void(udev_enumerate*)> filter, device_description& desc)
@@ -746,7 +1012,7 @@ bool try_get_device_description(std::function<void(udev_enumerate*)> filter, dev
 
     // NOTE: Should check that the device we found matched the filter? ex: udev_device_get_sysattr_value(dev, "number");
     // Should check that only one enumeration?
-    
+
     udev_device_unref(device);
     udev_enumerate_unref(enumerate);
     udev_unref(udev);
@@ -853,11 +1119,11 @@ int get_topology_depth(udev_device* device)
     udev_device* parent = device;
     while (true)
     {
-         parent = udev_device_get_parent(parent);
-         const char* subsystem = udev_device_get_subsystem(parent);
-         if (subsystem == nullptr || strlen(subsystem) == 0)
+        parent = udev_device_get_parent(parent);
+        const char* subsystem = udev_device_get_subsystem(parent);
+        if (subsystem == nullptr || strlen(subsystem) == 0)
             break;
-         depth++;
+        depth++;
     }
     return depth;
 }
@@ -867,14 +1133,14 @@ std::vector<device_description> get_sibling_audio_devices(const device_descripti
     return get_sibling_devices([](udev_enumerate* enumerate) {
         udev_enumerate_add_match_subsystem(enumerate, "sound");
         udev_enumerate_add_match_sysname(enumerate, "card*");
-    }, desc);
+        }, desc);
 }
 
 std::vector<device_description> get_sibling_serial_ports(const device_description& desc)
 {
     return get_sibling_devices([](udev_enumerate* enumerate) {
         udev_enumerate_add_match_subsystem(enumerate, "tty");
-    }, desc);
+        }, desc);
 }
 
 std::vector<device_description> get_sibling_devices(std::function<void(udev_enumerate*)> filter, const device_description& desc)
@@ -892,7 +1158,7 @@ std::vector<device_description> get_sibling_devices(std::function<void(udev_enum
     if (dev == nullptr)
     {
         udev_unref(udev);
-        return siblings;        
+        return siblings;
     }
 
     // Get the corresponding USB device
@@ -901,7 +1167,7 @@ std::vector<device_description> get_sibling_devices(std::function<void(udev_enum
     {
         udev_device_unref(dev);
         udev_unref(udev);
-        return siblings;        
+        return siblings;
     }
 
     // Get the USB device's parent USB device
@@ -910,7 +1176,7 @@ std::vector<device_description> get_sibling_devices(std::function<void(udev_enum
     {
         udev_device_unref(dev);
         udev_unref(udev);
-        return siblings;        
+        return siblings;
     }
 
     udev_enumerate* enumerate = udev_enumerate_new(udev);
@@ -926,15 +1192,15 @@ std::vector<device_description> get_sibling_devices(std::function<void(udev_enum
     filter(enumerate);
 
     udev_enumerate_scan_devices(enumerate);
- 
-    udev_list_entry *sibling_list_entry = nullptr;
-    udev_device *sibling_dev = nullptr;
+
+    udev_list_entry* sibling_list_entry = nullptr;
+    udev_device* sibling_dev = nullptr;
     udev_list_entry* devices = udev_enumerate_get_list_entry(enumerate);
 
     udev_list_entry_foreach(sibling_list_entry, devices)
     {
-        const char *path = udev_list_entry_get_name(sibling_list_entry);
-        sibling_dev = udev_device_new_from_syspath(udev, path);      
+        const char* path = udev_list_entry_get_name(sibling_list_entry);
+        sibling_dev = udev_device_new_from_syspath(udev, path);
         udev_device* sibling_usb_device;
         device_description sibling_desc;
         if (try_get_device_description(sibling_dev, sibling_usb_device, sibling_desc))
@@ -944,7 +1210,7 @@ std::vector<device_description> get_sibling_devices(std::function<void(udev_enum
 
     udev_device_unref(dev);
     udev_enumerate_unref(enumerate);
-    udev_unref(udev);    
+    udev_unref(udev);
 
     return siblings;
 }
