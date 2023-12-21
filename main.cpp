@@ -39,6 +39,7 @@
 #include <optional>
 #include <iostream>
 #include <fstream>
+#include <map>
 
 #include <nlohmann/json.hpp>
 #include <fmt/format.h>
@@ -139,17 +140,32 @@ struct audio_device_filter
     std::string name_filter = "";
     std::string desc_filter = "";
     std::string stream_name_filter = "";
-    bool playback_only = false; // use audio_device_type?
-    bool capture_only = false; // use audio_device_type?
-    bool playback_or_capture = false; // use audio_device_type?
-    bool playback_and_capture = false; // use audio_device_type?
+    bool playback_only = false; // TODO: use audio_device_type?
+    bool capture_only = false; // TODO: use audio_device_type?
+    bool playback_or_capture = false; // TODO: use audio_device_type?
+    bool playback_and_capture = false; // TODO: use audio_device_type?
     int bus = -1;
     int device = -1;
     int topology = -1;
     std::string path;
+};
+
+struct audio_device_volume_set
+{
     std::string control_name;
-    std::vector<std::string> audio_channels;
-    audio_device_type audio_channel_type;
+    std::vector<audio_device_channel_id> audio_channels;
+    audio_device_type audio_channel_type = audio_device_type::uknown;
+    int volume = -1;
+};
+
+struct audio_device_volume_set_visitor
+{
+    audio_device_volume_set volume_set;
+    audio_device_volume_info volume;
+    audio_device_volume_control control;
+    audio_device_channel channel;
+    std::string id;
+    int property_set_count = 0;
 };
 
 struct serial_port_filter
@@ -185,6 +201,7 @@ struct args
     std::multimap<std::string, std::string> command_line_args;
     audio_device_filter audio_filter;
     serial_port_filter port_filter;
+    std::vector<audio_device_volume_set> volume_set;
     bool verbose = true;
     bool help = false;
     bool use_json = false;
@@ -201,7 +218,7 @@ struct args
     bool command_line_has_errors = false;
     std::string command_line_error = "";
     bool show_version = false;
-    int volume = -1;
+    bool disable_volume_control = false;
 };
 
 struct search_result
@@ -249,6 +266,21 @@ void parse_audio_device_type(const std::string& typeStr, args& args)
     {
         args.audio_filter.playback_and_capture = true;
     }
+}
+
+bool try_parse_channels(const std::string& channels_str, std::vector<audio_device_channel_id>& channels)
+{
+    std::istringstream ss(channels_str);
+    std::string channel_str;
+
+    while (std::getline(ss, channel_str, ','))
+    {
+        audio_device_channel_id channel_id;
+        try_parse_audio_device_channel_display_name(channel_str, channel_id);
+        channels.push_back(channel_id);
+    }
+
+    return true;
 }
 
 bool try_parse_included_devices(const std::string& mode_str, included_devices& mode)
@@ -356,6 +388,7 @@ std::string to_json(const search_result& result)
 std::vector<audio_device_info> get_audio_devices(const audio_device_filter& m);
 bool match_audio_device(const audio_device_info& d, const audio_device_filter& m);
 bool match_device(const device_description& p, const audio_device_filter& m);
+bool try_get_audio_device_channel(const audio_device_info& audio_device, const std::string& control_name, audio_device_channel_id channel_id, audio_device_type channel_type, audio_device_channel& channel);
 
 std::vector<audio_device_info> get_audio_devices(const audio_device_filter& m)
 {
@@ -499,6 +532,8 @@ std::vector<std::pair<audio_device_volume_info, device_description>> map_device_
 search_result search(const args& args);
 bool has_audio_device_description_filter(const args& args);
 bool has_serial_port_description_filter(const args& args);
+std::vector<audio_device_volume_set_visitor> generate_volume_set_visitors(args& args, search_result& result);
+audio_device_volume_set_visitor create_visitor_object(audio_device_volume_info& volume, audio_device_volume_control& control, audio_device_channel& channel, audio_device_volume_set& volume_set);
 
 std::vector<std::pair<audio_device_info, device_description>> filter_audio_devices(const args& args, const std::vector<audio_device_info>& devices)
 {
@@ -637,7 +672,20 @@ bool has_serial_port_description_filter(const args& args)
 //                                                                  //
 // **************************************************************** //
 
+bool has_volume_control_options(int argc, char* argv[]);
 bool try_parse_command_line(int argc, char* argv[], args& args);
+
+bool has_volume_control_options(int argc, char* argv[])
+{
+    for (int i = 0; i < argc; i++)
+    {
+        std::string arg = std::string(argv[i]);
+        if (arg == "--audio.volume" || arg == "--audio.control" ||
+            arg == "--audio.channels" || arg == "--audio.channel_type")
+            return true;
+    }
+    return false;
+}
 
 bool try_parse_command_line(int argc, char* argv[], args& args)
 {
@@ -665,16 +713,26 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "audio.bus", {"audio.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.bus = result["audio.bus"].as<int>(); }}},
         { "audio.device", {"audio.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.device = result["audio.device"].as<int>(); }}},
         { "audio.topology", {"audio.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.topology = result["audio.topology"].as<int>(); }}},
-        { "audio.path", {"audio.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.path = result["audio.path"].as<std::string>(); }}},
-         { "port.name", {"port.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.name_filter = result["port.name"].as<std::string>(); }}},
-         { "port.desc", {"port.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.description_filter = result["port.desc"].as<std::string>(); }}},
-         { "port.bus", {"port.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.bus"].as<std::string>(), args.port_filter.bus); }}},
-         { "port.device", {"port.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.device"].as<std::string>(), args.port_filter.device); }}},
-         { "port.topology", {"port.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.topology"].as<std::string>(), args.port_filter.topology); }}},
-         { "port.path", {"port.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.path = result["port.path"].as<std::string>(); }}},
-         { "port.serial", {"port.serial", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.device_serial_number = result["port.serial"].as<std::string>(); }}},
-         { "port.mfn", {"port.mfn", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.manufacturer_filter = result["port.mfn"].as<std::string>(); }}}
+        { "audio.path", {"audio.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.path = result["audio.path"].as<std::string>(); }}},     
+        { "audio.control", {"audio.control", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.volume_set[0].control_name = result["audio.control"].as<std::string>(); }}},
+        { "audio.channels", {"audio.channels", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { try_parse_channels(result["audio.channels"].as<std::string>(), args.volume_set[0].audio_channels); }}},
+        { "audio.volume", {"audio.volume", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.volume_set[0].volume = result["audio.volume"].as<int>(); }}},
+        { "audio.channel_type", {"audio.channel_type", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { try_parse_audio_device_type(result["audio.channel_type"].as<std::string>(), args.volume_set[0].audio_channel_type); }}},
+        { "audio.disable-volume-control", {"audio.disable-volume-control", false, nullptr, [&](const cxxopts::ParseResult& result) { args.disable_volume_control = result["audio.disable-volume-control"].as<bool>(); }}},
+        { "port.name", {"port.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.name_filter = result["port.name"].as<std::string>(); }}},
+        { "port.desc", {"port.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.description_filter = result["port.desc"].as<std::string>(); }}},
+        { "port.bus", {"port.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.bus"].as<std::string>(), args.port_filter.bus); }}},
+        { "port.device", {"port.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.device"].as<std::string>(), args.port_filter.device); }}},
+        { "port.topology", {"port.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.topology"].as<std::string>(), args.port_filter.topology); }}},
+        { "port.path", {"port.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.path = result["port.path"].as<std::string>(); }}},
+        { "port.serial", {"port.serial", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.device_serial_number = result["port.serial"].as<std::string>(); }}},
+        { "port.mfn", {"port.mfn", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.manufacturer_filter = result["port.mfn"].as<std::string>(); }}}
     };
+
+    if (has_volume_control_options(argc, argv))
+    {
+        args.volume_set.push_back(audio_device_volume_set{});
+    }
 
     cxxopts::Options options("", "");
 
@@ -853,6 +911,115 @@ void read_settings(args& args)
                 args.port_filter.device_serial_number = port_match.value("serial", "");
         }
     }
+    if (j.contains("volume_control"))
+    {        
+        nlohmann::json volume_control = j["volume_control"];
+        if (args.volume_set.size() == 0)
+        {
+            if (volume_control.contains("capture_value"))
+            {
+                audio_device_volume_set capture_set;
+                try_parse_number(volume_control.value("capture_value", ""), capture_set.volume);
+                capture_set.audio_channel_type = audio_device_type::capture;
+                args.volume_set.push_back(capture_set);
+            }
+            if (volume_control.contains("playback_value"))
+            {
+                audio_device_volume_set playback_value;
+                try_parse_number(volume_control.value("playback_value", ""), playback_value.volume);
+                playback_value.audio_channel_type = audio_device_type::playback;
+                args.volume_set.push_back(playback_value);
+            }
+            if (volume_control.contains("controls"))
+            {
+                nlohmann::json controls = volume_control["controls"];
+                for (nlohmann::json control : controls)
+                {
+                    std::optional<std::string> control_name;
+                    std::optional<int> control_capture_value;
+                    std::optional<int> control_playback_value;
+                    if (control.contains("name"))
+                    {
+                        control_name = control["name"] ;
+                    }
+                    if (control.contains("capture_value"))
+                    {
+                        try_parse_number(control["capture_value"], control_capture_value);
+                    }
+                    if (control.contains("playback_value"))
+                    {
+                        try_parse_number(control["playback_value"], control_playback_value);
+                    }
+
+                    if (control_capture_value && control_name)
+                    {
+                        audio_device_volume_set capture_set;
+                        capture_set.control_name = control_name.value();
+                        capture_set.volume = control_capture_value.value();
+                        capture_set.audio_channel_type = audio_device_type::capture;
+                        args.volume_set.push_back(capture_set);
+                    }   
+
+                    if (control_playback_value && control_name)
+                    {
+                        audio_device_volume_set playback_set;
+                        playback_set.control_name = control_name.value();
+                        playback_set.volume = control_playback_value.value();
+                        playback_set.audio_channel_type = audio_device_type::playback;
+                        args.volume_set.push_back(playback_set);
+                    }
+
+                    nlohmann::json channels = control["channels"];
+                    for (nlohmann::json channel : channels)
+                    {
+                        std::optional<std::string> channel_name;
+                        std::optional<int> channel_capture_value;
+                        std::optional<int> channel_playback_value;
+                        if (channel.contains("name"))
+                        {
+                            channel_name = channel["name"] ;
+                        }
+                        if (channel.contains("capture_value"))
+                        {
+                            try_parse_number(channel["capture_value"], channel_capture_value);
+                        }
+                        if (channel.contains("playback_value"))
+                        {
+                            try_parse_number(channel["playback_value"], channel_playback_value);
+                        }
+
+                        if (channel_capture_value && channel_name)
+                        {
+                            audio_device_volume_set capture_set;
+                            capture_set.control_name = control_name.value_or(std::string{});
+                            capture_set.volume = channel_capture_value.value();
+                            capture_set.audio_channel_type = audio_device_type::capture;                            
+                            audio_device_channel_id channel_id;
+                            if (try_parse_audio_device_channel_display_name(channel_name.value(), channel_id))
+                            {
+                                capture_set.audio_channels.push_back(channel_id);
+                                args.volume_set.push_back(capture_set);
+                            }
+                        }   
+
+                        if (channel_playback_value && channel_name)
+                        {
+                            audio_device_volume_set playback_set;
+                            playback_set.control_name = control_name.value_or(std::string{});
+                            playback_set.volume = channel_playback_value.value();
+                            playback_set.audio_channel_type = audio_device_type::playback;                            
+                            audio_device_channel_id channel_id;
+                            if (try_parse_audio_device_channel_display_name(channel_name.value(), channel_id))
+                            {
+                                playback_set.audio_channels.push_back(channel_id);                                
+                                args.volume_set.push_back(playback_set);
+                            }
+                        }
+                    }
+                }
+            }
+        }        
+    }
 }
 
 // **************************************************************** //
@@ -865,7 +1032,9 @@ int main(int argc, char* argv[]);
 void print_usage();
 void print(args& args, search_result& result);
 void print_to_file(const args& args, const std::string& json);
-int list_devices(args& args);
+int process_devices(args& args);
+void adjust_volume(args& args, audio_device_volume_info& volume, audio_device_volume_control& control, audio_device_channel& channel, audio_device_volume_set& volume_set);
+int adjust_volume(args& args, search_result& result);
 void print_version();
 
 int main(int argc, char* argv[])
@@ -898,7 +1067,7 @@ int main(int argc, char* argv[])
 
     read_settings(args);
 
-    return list_devices(args);
+    return process_devices(args);
 }
 
 void print_usage()
@@ -939,6 +1108,7 @@ void print_usage()
         "                                       playback - playback only\n"
         "                                       capture - capture only\n"
         "                                       all\n"
+        "    --audio.disable-volume-control disable setting the audio device volume\n"
         "    --port.name <name>             search filter: partial or complete name of the serial port\n"
         "    --port.desc <description>      search filter: partial or complete description of the serial port\n"
         "    --port.bus <number>            search filter: serial port bus number\n"
@@ -1179,7 +1349,156 @@ void print_to_file(const args& args, const std::string& json)
     }
 }
 
-int list_devices(args& args)
+bool try_get_audio_device_channel(const audio_device_info& audio_device, const std::string& control_name, audio_device_channel_id channel_id, audio_device_type channel_type, audio_device_channel& channel)
+{
+    audio_device_volume_info new_volume;
+    try_get_audio_device_volume(audio_device, new_volume);
+
+    for (auto& new_control : new_volume.controls)
+    {
+        if (new_control.name != control_name)
+        {
+            continue;
+        }
+
+        for (auto& new_channel : new_control.channels)
+        {
+            if (new_channel.id != channel_id || new_channel.type != channel_type)
+            {
+                continue;
+            }
+
+            channel = new_channel;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+audio_device_volume_set_visitor create_visitor_object(audio_device_volume_info& volume, audio_device_volume_control& control, audio_device_channel& channel, audio_device_volume_set& volume_set)
+{
+    audio_device_volume_set_visitor visitor;
+    visitor.volume = volume;
+    visitor.control = control;
+    visitor.channel = channel;
+    visitor.volume_set = volume_set;
+    visitor.id = fmt::format("{},{},{},{}", volume.audio_device.hw_id, control.name, to_string(channel.id), to_string(channel.type));
+    if (volume_set.control_name.size() > 0)
+        visitor.property_set_count++;
+    if (volume_set.audio_channels.size() > 0)
+        visitor.property_set_count++;
+    return visitor;
+}
+
+std::vector<audio_device_volume_set_visitor> generate_volume_set_visitors(args& args, search_result& result)
+{
+    std::map<std::string, audio_device_volume_set_visitor> visitors;
+
+    for (auto& dd : result.devices)
+    {
+        audio_device_volume_info volume = dd.first;
+
+        for (auto& volume_set : args.volume_set)
+        {
+            if (volume_set.volume == -1)
+            {
+                continue;
+            }
+
+            for (auto& control : volume.controls)
+            {
+                // if the control name is set and it does not match, skip it
+                if (volume_set.control_name.size() > 0 && volume_set.control_name != control.name)
+                {
+                    continue;
+                }
+
+                for (auto& channel : control.channels)
+                {
+                    // if the channel type is set and it does not match, skip it
+                    if (volume_set.audio_channel_type != audio_device_type::uknown && channel.type != volume_set.audio_channel_type)
+                    {
+                        continue;
+                    }
+
+                    if (volume_set.audio_channels.size() == 0)
+                    {
+                        audio_device_volume_set_visitor visitor = create_visitor_object(volume, control, channel, volume_set);
+
+                        if (!visitors.contains(visitor.id) || visitors[visitor.id].property_set_count < visitor.property_set_count)
+                            visitors[visitor.id] = visitor;
+
+                        continue;
+                    }
+
+                    for (auto& channel_set : volume_set.audio_channels)
+                    {
+                        if (channel_set != channel.id)
+                        {
+                            continue;
+                        }
+
+                        audio_device_volume_set_visitor visitor = create_visitor_object(volume, control, channel, volume_set);
+
+                        if (!visitors.contains(visitor.id) || visitors[visitor.id].property_set_count < visitor.property_set_count)
+                            visitors[visitor.id] = visitor;
+                    }
+                }
+            }
+        }
+    }
+
+    std::vector<audio_device_volume_set_visitor> visitors_vect;
+    for (const auto& v : visitors)
+    {
+        visitors_vect.push_back(v.second);
+    }
+
+    return visitors_vect;
+}
+
+void adjust_volume(args& args, audio_device_volume_info& volume, audio_device_volume_control& control, audio_device_channel& channel, audio_device_volume_set& volume_set)
+{
+    channel.volume = volume_set.volume;
+
+    try_set_audio_device_volume(volume.audio_device, control, channel);                        
+
+    if (args.verbose && !args.use_json && !args.no_stdout)
+    {                            
+        audio_device_channel new_channel;
+        if (try_get_audio_device_channel(volume.audio_device, control.name, channel.id, channel.type, new_channel))
+        {
+            print(!args.disable_colors, fmt::emphasis::bold, "    Volume set to \"{}%\" on device \"{}\" for control name \"{}\" and {} channel \"{}\"\n", new_channel.volume, volume.audio_device.hw_id, control.name, to_string(channel.type), channel.name);
+        }
+    }
+}
+
+int adjust_volume(args& args, search_result& result)
+{
+    if (args.disable_volume_control)
+    {
+        return 0;
+    }
+
+    if (args.verbose && !args.use_json && !args.no_stdout)
+    {
+        print(!args.disable_colors, fmt::emphasis::bold, "Volume control:\n\n");
+    }
+
+    std::vector<audio_device_volume_set_visitor> visitors_vect = generate_volume_set_visitors(args, result);
+
+    for (auto& visitor : visitors_vect)
+    {
+        adjust_volume(args, visitor.volume, visitor.control, visitor.channel, visitor.volume_set);
+    }
+
+    printf("\n");
+
+    return 0;
+}
+
+int process_devices(args& args)
 {
     search_result result = search(args);
 
@@ -1194,9 +1513,11 @@ int list_devices(args& args)
         print(args, result);
     }
 
+    int return_value = adjust_volume(args, result);
+
     print_to_file(args, json_output);
 
-    return 0;
+    return return_value;
 }
 
 void print_version()

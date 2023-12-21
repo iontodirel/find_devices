@@ -36,6 +36,7 @@
 #include <string>
 #include <locale>
 #include <sstream>
+#include <optional>
 
 // **************************************************************** //
 //                                                                  //
@@ -57,6 +58,17 @@ namespace
             number = maybe_number;
         return result;
     }
+
+    bool try_parse_number(std::string str, std::optional<int>& number)
+    {
+        int maybe_number = -1;
+        if (try_parse_number(str, maybe_number))
+        {
+            number = maybe_number;
+            return true;
+        }
+        return false;
+    }
 }
 
 // **************************************************************** //
@@ -76,6 +88,8 @@ audio_device_type operator|(const audio_device_type& l, const audio_device_type&
 audio_device_type operator&(const audio_device_type& l, const audio_device_type& r);
 
 bool enum_device_type_has_flag(const audio_device_type& deviceType, const audio_device_type& flag);
+
+bool try_parse_audio_device_type(const std::string& type_str, audio_device_type& type);
 
 std::string to_string(const audio_device_type& deviceType);
 
@@ -120,12 +134,15 @@ enum class audio_device_channel_id
     none
 };
 
+bool try_parse_audio_device_channel_id(const std::string& channel_str, audio_device_channel_id& type);
+bool try_parse_audio_device_channel_display_name(const std::string& channel_str, audio_device_channel_id& type);
+
 struct audio_device_channel
 {
     std::string name;
     int volume = 0;
     audio_device_type type = audio_device_type::uknown;
-    audio_device_channel_id channel = audio_device_channel_id::none;
+    audio_device_channel_id id = audio_device_channel_id::none;
 };
 
 struct audio_device_volume_control

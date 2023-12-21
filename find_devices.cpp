@@ -76,6 +76,19 @@ void insert_tabs(std::string& s, int tabs, int tab_spaces)
     s = result;
 }
 
+namespace 
+{
+    std::string to_lower(const std::string& str)
+    {
+        std::locale loc;
+        std::string s;
+        s.resize(str.size());
+        for (size_t i = 0; i < str.size(); i++)
+            s[i] = std::tolower(str[i], loc);
+        return s;
+    }
+}
+
 // **************************************************************** //
 //                                                                  //
 //                                                                  //
@@ -125,6 +138,155 @@ audio_device_type operator&(const audio_device_type& l, const audio_device_type&
 bool enum_device_type_has_flag(const audio_device_type& deviceType, const audio_device_type& flag)
 {
     return (deviceType & flag) != (audio_device_type)0;
+}
+
+bool try_parse_audio_device_type(const std::string& type_str, audio_device_type& type)
+{
+    bool result = true;
+    if (type_str == "playback")
+    {
+        type = audio_device_type::playback;
+    }
+    else if (type_str == "capture")
+    {
+        type = audio_device_type::capture;
+    }
+    else if (type_str == "uknown")
+    {
+        type = audio_device_type::uknown;
+    }
+    else
+    {
+        type = audio_device_type::uknown;
+        result = false;
+    }
+    return result;
+}
+
+bool try_parse_audio_device_channel_id(const std::string& channel_str, audio_device_channel_id& type)
+{
+    std::string lowercase_channel_str = to_lower(channel_str);
+
+    if (lowercase_channel_str == "front_left")
+    {
+        type = audio_device_channel_id::front_left;
+        return true;
+    }
+    else if (lowercase_channel_str == "front_right")
+    {
+        type = audio_device_channel_id::front_right;
+        return true;
+    }
+    else if (lowercase_channel_str == "front_center")
+    {
+        type = audio_device_channel_id::front_center;
+        return true;
+    } 
+    else if (lowercase_channel_str == "rear_left")
+    {
+        type = audio_device_channel_id::rear_left;
+        return true;
+    }
+    else if (lowercase_channel_str == "rear_right") 
+    {
+        type = audio_device_channel_id::rear_right;
+        return true;
+    }
+    else if (lowercase_channel_str == "rear_center") 
+    {
+        type = audio_device_channel_id::rear_center;
+        return true;
+    }
+    else if (lowercase_channel_str == "woofer") 
+    {
+        type = audio_device_channel_id::woofer;
+        return true;
+    }
+    else if (lowercase_channel_str == "side_left") 
+    {
+        type = audio_device_channel_id::side_left;
+        return true;
+    }
+    else if (lowercase_channel_str == "side_right") 
+    {
+        type = audio_device_channel_id::side_right;
+        return true;
+    }
+    else if (lowercase_channel_str == "mono") 
+    {
+        type = audio_device_channel_id::mono;
+        return true;
+    }
+    else if (lowercase_channel_str == "none")
+    {
+        type = audio_device_channel_id::none;
+        return true;
+    }
+
+    return false;
+}
+
+bool try_parse_audio_device_channel_display_name(const std::string& channel_str, audio_device_channel_id& type)
+{
+    std::string lowercase_channel_str = to_lower(channel_str);
+
+    if (lowercase_channel_str == "front left")
+    {
+        type = audio_device_channel_id::front_left;
+        return true;
+    }
+    else if (lowercase_channel_str == "front right")
+    {
+        type = audio_device_channel_id::front_right;
+        return true;
+    }
+    else if (lowercase_channel_str == "front center")
+    {
+        type = audio_device_channel_id::front_center;
+        return true;
+    } 
+    else if (lowercase_channel_str == "rear left")
+    {
+        type = audio_device_channel_id::rear_left;
+        return true;
+    }
+    else if (lowercase_channel_str == "rear right") 
+    {
+        type = audio_device_channel_id::rear_right;
+        return true;
+    }
+    else if (lowercase_channel_str == "rear center") 
+    {
+        type = audio_device_channel_id::rear_center;
+        return true;
+    }
+    else if (lowercase_channel_str == "woofer") 
+    {
+        type = audio_device_channel_id::woofer;
+        return true;
+    }
+    else if (lowercase_channel_str == "side left") 
+    {
+        type = audio_device_channel_id::side_left;
+        return true;
+    }
+    else if (lowercase_channel_str == "side right") 
+    {
+        type = audio_device_channel_id::side_right;
+        return true;
+    }
+    else if (lowercase_channel_str == "mono") 
+    {
+        type = audio_device_channel_id::mono;
+        return true;
+    }
+    else if (lowercase_channel_str == "none")
+    {
+        type = audio_device_channel_id::none;
+        return true;
+    }
+
+    return false;
 }
 
 std::string to_string(const audio_device_type& deviceType)
@@ -502,7 +664,7 @@ bool try_get_audio_device_volume(const audio_device_info& device, audio_device_v
             audio_device_channel channel;
 
             channel.name = snd_mixer_selem_channel_name((snd_mixer_selem_channel_id_t)channel_id);
-            channel.channel = parse_audio_device_channel_id(channel_id);
+            channel.id = parse_audio_device_channel_id(channel_id);
 
             long min = 0, max = 100, value = 0;
 
@@ -536,12 +698,12 @@ bool try_get_audio_device_volume(const audio_device_info& device, audio_device_v
 
 bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel& channel)
 {
-    return try_set_audio_device_volume(device, control_name, channel.channel, channel.type, channel.volume);
+    return try_set_audio_device_volume(device, control_name, channel.id, channel.type, channel.volume);
 }
 
 bool try_set_audio_device_volume(const audio_device_info& device, const audio_device_volume_control& control, const audio_device_channel& channel)
 {
-    return try_set_audio_device_volume(device, control.name, channel.channel, channel.type, channel.volume);
+    return try_set_audio_device_volume(device, control.name, channel.id, channel.type, channel.volume);
 }
 
 bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel_id& channel, const audio_device_type& channel_type, int volume)
@@ -740,7 +902,7 @@ std::string to_json(const audio_device_volume_info& d, bool wrapping_object, int
             s.append("                    \"name\": \"" + d.controls[i].channels[j].name + "\",\n");
             s.append("                    \"type\": \"" + to_string(d.controls[i].channels[j].type) + "\",\n");
             s.append("                    \"volume\": \"" + std::to_string(d.controls[i].channels[j].volume) + "\",\n");
-            s.append("                    \"channel\": \"" + to_string(d.controls[i].channels[j].channel) + "\"\n");
+            s.append("                    \"channel\": \"" + to_string(d.controls[i].channels[j].id) + "\"\n");
             s.append("                }");
             if ((j + 1) < d.controls[i].channels.size())
                 s.append(",");
