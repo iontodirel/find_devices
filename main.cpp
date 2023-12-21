@@ -681,7 +681,7 @@ bool has_volume_control_options(int argc, char* argv[])
     {
         std::string arg = std::string(argv[i]);
         if (arg == "--audio.volume" || arg == "--audio.control" ||
-            arg == "--audio.channels" || arg == "--audio.channel_type")
+            arg == "--audio.channels" || arg == "--audio.channel-type")
             return true;
     }
     return false;
@@ -708,7 +708,7 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "expected-count", {"e,expected-count", true, cxxopts::value<int>()->default_value("1"), [&](const cxxopts::ParseResult& result) { args.expected_count = result["expected-count"].as<int>(); }}},
         { "audio.desc", {"audio.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.desc_filter = result["audio.desc"].as<std::string>(); }}},
         { "audio.name", {"audio.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.name_filter = result["audio.name"].as<std::string>(); }}},
-        { "audio.stream_name", {"audio.stream_name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.stream_name_filter = result["audio.stream_name"].as<std::string>(); }}},
+        { "audio.stream-name", {"audio.stream-name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.stream_name_filter = result["audio.stream-name"].as<std::string>(); }}},
         { "audio.type", {"audio.type", true, cxxopts::value<std::string>()->default_value("playback|capture"), [&](const cxxopts::ParseResult& result) { parse_audio_device_type(result["audio.type"].as<std::string>(), args); }}},
         { "audio.bus", {"audio.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.bus = result["audio.bus"].as<int>(); }}},
         { "audio.device", {"audio.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.device = result["audio.device"].as<int>(); }}},
@@ -717,8 +717,9 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "audio.control", {"audio.control", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.volume_set[0].control_name = result["audio.control"].as<std::string>(); }}},
         { "audio.channels", {"audio.channels", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { try_parse_channels(result["audio.channels"].as<std::string>(), args.volume_set[0].audio_channels); }}},
         { "audio.volume", {"audio.volume", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.volume_set[0].volume = result["audio.volume"].as<int>(); }}},
-        { "audio.channel_type", {"audio.channel_type", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { try_parse_audio_device_type(result["audio.channel_type"].as<std::string>(), args.volume_set[0].audio_channel_type); }}},
+        { "audio.channel-type", {"audio.channel-type", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { try_parse_audio_device_type(result["audio.channel-type"].as<std::string>(), args.volume_set[0].audio_channel_type); }}},
         { "audio.disable-volume-control", {"audio.disable-volume-control", false, nullptr, [&](const cxxopts::ParseResult& result) { args.disable_volume_control = result["audio.disable-volume-control"].as<bool>(); }}},
+        { "no-volume-control", {"no-volume-control", false, nullptr, [&](const cxxopts::ParseResult& result) { args.disable_volume_control = result["no-volume-control"].as<bool>(); }}},
         { "port.name", {"port.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.name_filter = result["port.name"].as<std::string>(); }}},
         { "port.desc", {"port.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.description_filter = result["port.desc"].as<std::string>(); }}},
         { "port.bus", {"port.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.bus"].as<std::string>(), args.port_filter.bus); }}},
@@ -877,7 +878,7 @@ void read_settings(args& args)
             nlohmann::json audio_match = search_criteria["audio"];
             if (!args.command_line_args.contains("audio.name"))
                 args.audio_filter.name_filter = audio_match.value("name", "");
-            if (!args.command_line_args.contains("audio.stream_name"))
+            if (!args.command_line_args.contains("audio.stream-name"))
                 args.audio_filter.stream_name_filter = audio_match.value("stream_name", "");
             if (!args.command_line_args.contains("audio.desc"))
                 args.audio_filter.desc_filter = audio_match.value("desc", "");
@@ -1088,7 +1089,7 @@ void print_usage()
         "\n"
         "Options:\n"
         "    --audio.name <name>            search filter: partial or complete name of the audio device\n"
-        "    --audio.stream_name <name>     search filter: partial or complete name of the audio stream name\n"
+        "    --audio.stream-name <name>     search filter: partial or complete name of the audio stream name\n"
         "    --audio.desc <description>     search filter: partial or complete description of the audio device\n"
         "    --audio.type <type>            search filter: types of audio devices to find: playback, capture, playback|capture, playback&capture:\n"
         "                                       playback - playback only\n"
@@ -1103,8 +1104,8 @@ void print_usage()
         "    --audio.control <name>         used to set a value on the audio device; this property is used to select the audio control to set\n"
         "    --audio.channels <channels>    used to set a value on the audio device; this property is used to select the audio channels to set\n"
         "    --audio.volume <volume>        used to set a value on the audio device; this property is used to set the audio volume\n"
-        "                                   on all devices that match --audio.control, --audio.channels and --audio.channel_type.\n"
-        "    --audio.channel_type <type>    used to set a value on the audio device; this property is used to select the channel type\n"
+        "                                   on all devices that match --audio.control, --audio.channels and --audio.channel-type.\n"
+        "    --audio.channel-type <type>    used to set a value on the audio device; this property is used to select the channel type\n"
         "                                       playback - playback only\n"
         "                                       capture - capture only\n"
         "                                       all\n"
@@ -1120,6 +1121,7 @@ void print_usage()
         "    -v, --verbose                  enable detailed printing to stdout\n"
         "    --no-verbose                   disable detailed printing to stdout\n"
         "    --no-stdout                    don't print to stdout\n"
+        "    --no-volume-control            disable setting the audio device volume\n"
         "    -h, --help                     print help\n"
         "    -v, --version                  prints the version of this program\n"
         "    -p, --list-properties          print detailed properties for each device and serial port\n"
@@ -1161,9 +1163,9 @@ void print_usage()
         "    find_devices -h\n"
         "    find_devices -j -o output.json\n"
         "    find_devices -c digirig_config.json\n"
-        "    find_devices --audio.control Speakers --audio.channels=\"Front Left, Front Center\" --audio.volume 60 --audio.channel_type=capture\n"
-        "    find_devices --audio.control Speakers --audio.channels=\"Front Left\" --audio.volume 80 --audio.channel_type=playback\n"
-        "    find_devices --audio.volume 50 --audio.channel_type=playback\n"
+        "    find_devices --audio.control Speakers --audio.channels=\"Front Left, Front Center\" --audio.volume 60 --audio.channel-type=capture\n"
+        "    find_devices --audio.control Speakers --audio.channels=\"Front Left\" --audio.volume 80 --audio.channel-type=playback\n"
+        "    find_devices --audio.volume 50 --audio.channel-type=playback\n"
         "    find_devices --audio.control Speakers --audio.channels=\"Front Left, Front Center\" --audio.volume 50\n"
         "\n"
         "Defaults:\n"
