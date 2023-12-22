@@ -1341,13 +1341,6 @@ void print_usage()
     printf("%s", usage.c_str());
 }
 
-// todo:
-//  more error handling: ex: failed json read
-//  implement testing
-//  implement volume setting
-//  implement more search props 
-//  try_set_audio_device_volume refactoring into multiple functions
-
 void print_stdout(const args& args, const search_result& result)
 {
     if (args.no_stdout)
