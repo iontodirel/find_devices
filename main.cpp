@@ -57,6 +57,12 @@
 
 namespace
 {
+    template <typename... Args>
+    void print(bool enable_colors, const fmt::text_style& ts, const Args&... args)
+    {
+        fmt::print(enable_colors ? ts : fmt::text_style(), args...);
+    }
+
     template<class F, class ...Args>
     void print_stdout(F f, Args... args)
     {
@@ -74,7 +80,7 @@ namespace
         }
     }
 
-    bool try_parse_bool(std::string s, bool& b)
+    bool try_parse_bool(const std::string& s, bool& b)
     {
         if (s == "true")
             b = true;
@@ -85,7 +91,7 @@ namespace
         return true;
     }
 
-    std::string get_full_path(std::string path)
+    std::string get_full_path(const std::string& path)
     {
         std::filesystem::path p = path;
         if (p.is_absolute())
@@ -103,7 +109,7 @@ namespace
         return s;
     }
 
-    bool try_find_new_filename(std::filesystem::path file_name, std::string& new_filename)
+    bool try_find_new_filename(const std::filesystem::path& file_name, std::string& new_filename)
     {
         int i = 1;
         int max_count = 1000;
@@ -134,6 +140,8 @@ enum class search_mode;
 enum class included_devices;
 struct args;
 struct search_result;
+struct audio_device_volume_set;
+struct audio_device_unique_volume_set;
 
 struct audio_device_filter
 {
@@ -158,7 +166,7 @@ struct audio_device_volume_set
     int volume = -1;
 };
 
-struct audio_device_volume_set_visitor
+struct audio_device_unique_volume_set
 {
     audio_device_volume_set volume_set;
     audio_device_volume_info volume;
@@ -208,7 +216,6 @@ struct args
     std::string output_file;
     bool disable_write_file = false;
     bool list_properties = false;
-    int expected_count = -1;
     enum search_mode search_mode = search_mode::independent;
     enum included_devices included_devices = included_devices::all;
     std::string config_file = "config.json";
@@ -219,6 +226,7 @@ struct args
     std::string command_line_error = "";
     bool show_version = false;
     bool disable_volume_control = false;
+    bool test_volume_control = false;
 };
 
 struct search_result
@@ -331,7 +339,7 @@ bool try_parse_search_mode(const std::string& mode_str, search_mode& mode)
 //                                                                  //
 // **************************************************************** //
 
-std::string to_json(const search_result& result)
+std::string to_json(const args& args, const search_result& result, int volume_control_return_value)
 {
     std::string s;
     s += "{\n";
@@ -373,7 +381,29 @@ std::string to_json(const search_result& result)
         j++;
     }
 
-    s += "    ]\n";
+    s += "    ]";
+
+    if (args.test_volume_control)
+    {
+        s += ",\n";
+        s += "    \"volume_control_test_result\": ";
+        if (volume_control_return_value == 0)
+            s += "\"success\"";
+        else
+            s += "\"failure\"";
+    }
+
+    if (!args.ignore_config)
+    {
+        s += ",\n";
+        std::string config_file = std::filesystem::absolute(args.config_file).string();
+        s += "    \"config_file\": \"" + config_file + "\"\n";
+    }
+    else
+    {
+        s += "\n";
+    }
+
     s += "}";
 
     return s;
@@ -459,6 +489,33 @@ bool match_device(const device_description& p, const audio_device_filter& m)
     return true;
 }
 
+bool try_get_audio_device_channel(const audio_device_info& audio_device, const std::string& control_name, audio_device_channel_id channel_id, audio_device_type channel_type, audio_device_channel& channel)
+{
+    audio_device_volume_info new_volume;
+    try_get_audio_device_volume(audio_device, new_volume);
+
+    for (auto& new_control : new_volume.controls)
+    {
+        if (new_control.name != control_name)
+        {
+            continue;
+        }
+
+        for (auto& new_channel : new_control.channels)
+        {
+            if (new_channel.id != channel_id || new_channel.type != channel_type)
+            {
+                continue;
+            }
+
+            channel = new_channel;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // **************************************************************** //
 //                                                                  //
 // SERIAL PORTS                                                     //
@@ -532,8 +589,8 @@ std::vector<std::pair<audio_device_volume_info, device_description>> map_device_
 search_result search(const args& args);
 bool has_audio_device_description_filter(const args& args);
 bool has_serial_port_description_filter(const args& args);
-std::vector<audio_device_volume_set_visitor> generate_volume_set_visitors(args& args, search_result& result);
-audio_device_volume_set_visitor create_visitor_object(audio_device_volume_info& volume, audio_device_volume_control& control, audio_device_channel& channel, audio_device_volume_set& volume_set);
+std::vector<audio_device_unique_volume_set> generate_unique_volume_set(const args& args, const search_result& result);
+audio_device_unique_volume_set create_unique_volume_set_object(const audio_device_volume_info& volume, const audio_device_volume_control& control, const audio_device_channel& channel, const audio_device_volume_set& volume_set);
 
 std::vector<std::pair<audio_device_info, device_description>> filter_audio_devices(const args& args, const std::vector<audio_device_info>& devices)
 {
@@ -666,6 +723,88 @@ bool has_serial_port_description_filter(const args& args)
         args.port_filter.topology != -1);
 }
 
+std::vector<audio_device_unique_volume_set> generate_unique_volume_set(const args& args, const search_result& result)
+{
+    std::map<std::string, audio_device_unique_volume_set> visitors;
+
+    for (auto& dd : result.devices)
+    {
+        audio_device_volume_info volume = dd.first;
+
+        for (auto& volume_set : args.volume_set)
+        {
+            if (volume_set.volume == -1)
+            {
+                continue;
+            }
+
+            for (auto& control : volume.controls)
+            {
+                // if the control name is set and it does not match, skip it
+                if (volume_set.control_name.size() > 0 && volume_set.control_name != control.name)
+                {
+                    continue;
+                }
+
+                for (auto& channel : control.channels)
+                {
+                    // if the channel type is set and it does not match, skip it
+                    if (volume_set.audio_channel_type != audio_device_type::uknown && channel.type != volume_set.audio_channel_type)
+                    {
+                        continue;
+                    }
+
+                    if (volume_set.audio_channels.size() == 0)
+                    {
+                        audio_device_unique_volume_set visitor = create_unique_volume_set_object(volume, control, channel, volume_set);
+
+                        if (!visitors.contains(visitor.id) || visitors[visitor.id].property_set_count < visitor.property_set_count)
+                            visitors[visitor.id] = visitor;
+
+                        continue;
+                    }
+
+                    for (auto& channel_set : volume_set.audio_channels)
+                    {
+                        if (channel_set != channel.id)
+                        {
+                            continue;
+                        }
+
+                        audio_device_unique_volume_set visitor = create_unique_volume_set_object(volume, control, channel, volume_set);
+
+                        if (!visitors.contains(visitor.id) || visitors[visitor.id].property_set_count < visitor.property_set_count)
+                            visitors[visitor.id] = visitor;
+                    }
+                }
+            }
+        }
+    }
+
+    std::vector<audio_device_unique_volume_set> visitors_vect;
+    for (const auto& v : visitors)
+    {
+        visitors_vect.push_back(v.second);
+    }
+
+    return visitors_vect;
+}
+
+audio_device_unique_volume_set create_unique_volume_set_object(const audio_device_volume_info& volume, const audio_device_volume_control& control, const audio_device_channel& channel, const audio_device_volume_set& volume_set)
+{
+    audio_device_unique_volume_set visitor;
+    visitor.volume = volume;
+    visitor.control = control;
+    visitor.channel = channel;
+    visitor.volume_set = volume_set;
+    visitor.id = fmt::format("{},{},{},{}", volume.audio_device.hw_id, control.name, to_string(channel.id), to_string(channel.type));
+    if (volume_set.control_name.size() > 0)
+        visitor.property_set_count++;
+    if (volume_set.audio_channels.size() > 0)
+        visitor.property_set_count++;
+    return visitor;
+}
+
 // **************************************************************** //
 //                                                                  //
 // COMMAND LINE                                                     //
@@ -705,7 +844,6 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "no-verbose", {"no-verbose", false, nullptr, [&](const cxxopts::ParseResult& result) { args.verbose = false; }}},
         { "config-file", {"c,config-file", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.config_file = result["config-file"].as<std::string>(); }}},
         { "output-file", {"o,output-file", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.output_file = result["output-file"].as<std::string>(); }}},
-        { "expected-count", {"e,expected-count", true, cxxopts::value<int>()->default_value("1"), [&](const cxxopts::ParseResult& result) { args.expected_count = result["expected-count"].as<int>(); }}},
         { "audio.desc", {"audio.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.desc_filter = result["audio.desc"].as<std::string>(); }}},
         { "audio.name", {"audio.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.name_filter = result["audio.name"].as<std::string>(); }}},
         { "audio.stream-name", {"audio.stream-name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.stream_name_filter = result["audio.stream-name"].as<std::string>(); }}},
@@ -720,6 +858,7 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "audio.channel-type", {"audio.channel-type", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { try_parse_audio_device_type(result["audio.channel-type"].as<std::string>(), args.volume_set[0].audio_channel_type); }}},
         { "audio.disable-volume-control", {"audio.disable-volume-control", false, nullptr, [&](const cxxopts::ParseResult& result) { args.disable_volume_control = result["audio.disable-volume-control"].as<bool>(); }}},
         { "no-volume-control", {"no-volume-control", false, nullptr, [&](const cxxopts::ParseResult& result) { args.disable_volume_control = result["no-volume-control"].as<bool>(); }}},
+        { "test-volume-control", {"test-volume-control", false, nullptr, [&](const cxxopts::ParseResult& result) { args.test_volume_control = result["test-volume-control"].as<bool>(); }}},
         { "port.name", {"port.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.name_filter = result["port.name"].as<std::string>(); }}},
         { "port.desc", {"port.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.description_filter = result["port.desc"].as<std::string>(); }}},
         { "port.bus", {"port.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.bus"].as<std::string>(), args.port_filter.bus); }}},
@@ -803,13 +942,20 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
 // **************************************************************** //
 
 void read_settings(args& args);
+void parse_top_level_settings(args& args, const nlohmann::json& j);
+void parse_search_criteria(args& args, const nlohmann::json& j);
+void parse_volume_control(args& args, const nlohmann::json& j);
 
 void read_settings(args& args)
 {
     if (args.ignore_config)
+    {
         return;
+    }
 
     std::string config_file = args.config_file;
+
+    // read settings from current executable directory if present
 
     if (args.config_file.empty())
     {
@@ -840,7 +986,7 @@ void read_settings(args& args)
 
     try
     {
-        i >> j;
+        j = nlohmann::json::parse(i, nullptr, true, /*ignore comments*/ true);
     }
     catch (nlohmann::json::parse_error&)
     {
@@ -851,10 +997,15 @@ void read_settings(args& args)
         return;
     }
 
+    parse_top_level_settings(args, j);
+    parse_search_criteria(args, j);    
+    parse_volume_control(args, j);    
+}
+
+void parse_top_level_settings(args& args, const nlohmann::json& j)
+{
     if (!args.command_line_args.contains("search-mode"))
         try_parse_search_mode(j.value("search_mode", ""), args.search_mode);
-    if (!args.command_line_args.contains("expected-count"))
-        try_parse_number(j.value("expected_count", ""), args.expected_count);
     if (!args.command_line_args.contains("use-json"))
         try_parse_bool(j.value("use_json", ""), args.use_json);
     if (!args.command_line_args.contains("list-properties"))
@@ -870,6 +1021,10 @@ void read_settings(args& args)
     }
     if (!args.command_line_args.contains("included-devices"))
         try_parse_included_devices(j.value("included_devices", ""), args.included_devices);
+}
+
+void parse_search_criteria(args& args, const nlohmann::json& j)
+{
     if (j.contains("search_criteria"))
     {
         nlohmann::json search_criteria = j["search_criteria"];
@@ -912,6 +1067,10 @@ void read_settings(args& args)
                 args.port_filter.device_serial_number = port_match.value("serial", "");
         }
     }
+}
+
+void parse_volume_control(args& args, const nlohmann::json& j)
+{
     if (j.contains("volume_control"))
     {        
         nlohmann::json volume_control = j["volume_control"];
@@ -1031,12 +1190,18 @@ void read_settings(args& args)
 
 int main(int argc, char* argv[]);
 void print_usage();
-void print(args& args, search_result& result);
+void print_stdout(const args& args, const search_result& result);
 void print_to_file(const args& args, const std::string& json);
+void adjust_volume(const args& args, const audio_device_volume_info& volume, const audio_device_volume_control& control, const audio_device_channel& channel, const audio_device_volume_set& volume_set);
+std::vector<audio_device_unique_volume_set> adjust_volume(const args& args, search_result& result);
+int test_volume_control(const args& args, const search_result& result);
+void print_adjust_volume_results(const args& args, const std::vector<audio_device_unique_volume_set>& audio_set_result);
+void update_devices_volume(search_result& result);
+void print(const args& args, const search_result& result, int volume_control_return_value, const std::vector<audio_device_unique_volume_set>& audio_set_result);
 int process_devices(args& args);
-void adjust_volume(args& args, audio_device_volume_info& volume, audio_device_volume_control& control, audio_device_channel& channel, audio_device_volume_set& volume_set);
-int adjust_volume(args& args, search_result& result);
 void print_version();
+
+
 
 int main(int argc, char* argv[])
 {
@@ -1122,6 +1287,9 @@ void print_usage()
         "    --no-verbose                   disable detailed printing to stdout\n"
         "    --no-stdout                    don't print to stdout\n"
         "    --no-volume-control            disable setting the audio device volume\n"
+        "    --test-volume-control          verifies whether the audio devices matching the serarch criteria\n"
+        "                                   match the specification given in the volume control\n"
+        "                                   if the volume control do not match, the exit code is 1\n"
         "    -h, --help                     print help\n"
         "    -v, --version                  prints the version of this program\n"
         "    -p, --list-properties          print detailed properties for each device and serial port\n"
@@ -1133,9 +1301,6 @@ void print_usage()
         "                                       independent - look for audio devices and serial ports independently\n"
         "                                       audio-siblings - look for audio devices and find their sibling serial ports\n"
         "                                       port-siblings - look for serial ports and find their sibling audio devices\n"
-        "    -e, --expected <count>         how many results to expect from a search\n"
-        "                                   devices of each type count as one, one serial port and one audio device count as one\n"
-        "                                   default value is one, if the result count does not match the count, return value will be 1\n"
         "    --output-file <file>           write results as JSON to a file\n"
         "    --json                         display JSON to stdout\n"
         "    --ignore-config                ignore the configuration file, if a configurtion file is available or specified\n"
@@ -1152,7 +1317,6 @@ void print_usage()
         "    0 - success, audio devices or serial ports are found matching the search criteria\n"
         "    1 - if the command line arguments are incorrect, or if called with --help\n"
         "    1 - if no devices are found, or no devices are matching the search criteria\n"
-        "    1 - if the number of devices found do not match the count specified by --expected\n"
         "\n"
         "Example:\n"
         "    find_devices --audio.name \"USB Audio\" --audio.desc \"Texas Instruments\" --no-verbose\n"
@@ -1177,13 +1341,14 @@ void print_usage()
     printf("%s", usage.c_str());
 }
 
-template <typename... Args>
-void print(bool enable_colors, const fmt::text_style& ts, const Args&... args)
-{
-    fmt::print(enable_colors ? ts : fmt::text_style(), args...);
-}
+// todo:
+//  more error handling: ex: failed json read
+//  implement testing
+//  implement volume setting
+//  implement more search props 
+//  try_set_audio_device_volume refactoring into multiple functions
 
-void print(args& args, search_result& result)
+void print_stdout(const args& args, const search_result& result)
 {
     if (args.no_stdout)
     {
@@ -1330,7 +1495,9 @@ void print(args& args, search_result& result)
 void print_to_file(const args& args, const std::string& json)
 {
     if (args.disable_write_file)
+    {
         return;
+    }
 
     std::string file_name = args.output_file;
 
@@ -1351,160 +1518,101 @@ void print_to_file(const args& args, const std::string& json)
     }
 }
 
-bool try_get_audio_device_channel(const audio_device_info& audio_device, const std::string& control_name, audio_device_channel_id channel_id, audio_device_type channel_type, audio_device_channel& channel)
+void adjust_volume(const args& args, const audio_device_volume_info& volume, const audio_device_volume_control& control, const audio_device_channel& channel, const audio_device_volume_set& volume_set)
 {
-    audio_device_volume_info new_volume;
-    try_get_audio_device_volume(audio_device, new_volume);
+    audio_device_channel updated_channel = channel;
 
-    for (auto& new_control : new_volume.controls)
-    {
-        if (new_control.name != control_name)
-        {
-            continue;
-        }
+    updated_channel.volume = volume_set.volume;
 
-        for (auto& new_channel : new_control.channels)
-        {
-            if (new_channel.id != channel_id || new_channel.type != channel_type)
-            {
-                continue;
-            }
-
-            channel = new_channel;
-            return true;
-        }
-    }
-
-    return false;
+    try_set_audio_device_volume(volume.audio_device, control, updated_channel);
 }
 
-audio_device_volume_set_visitor create_visitor_object(audio_device_volume_info& volume, audio_device_volume_control& control, audio_device_channel& channel, audio_device_volume_set& volume_set)
-{
-    audio_device_volume_set_visitor visitor;
-    visitor.volume = volume;
-    visitor.control = control;
-    visitor.channel = channel;
-    visitor.volume_set = volume_set;
-    visitor.id = fmt::format("{},{},{},{}", volume.audio_device.hw_id, control.name, to_string(channel.id), to_string(channel.type));
-    if (volume_set.control_name.size() > 0)
-        visitor.property_set_count++;
-    if (volume_set.audio_channels.size() > 0)
-        visitor.property_set_count++;
-    return visitor;
-}
-
-std::vector<audio_device_volume_set_visitor> generate_volume_set_visitors(args& args, search_result& result)
-{
-    std::map<std::string, audio_device_volume_set_visitor> visitors;
-
-    for (auto& dd : result.devices)
-    {
-        audio_device_volume_info volume = dd.first;
-
-        for (auto& volume_set : args.volume_set)
-        {
-            if (volume_set.volume == -1)
-            {
-                continue;
-            }
-
-            for (auto& control : volume.controls)
-            {
-                // if the control name is set and it does not match, skip it
-                if (volume_set.control_name.size() > 0 && volume_set.control_name != control.name)
-                {
-                    continue;
-                }
-
-                for (auto& channel : control.channels)
-                {
-                    // if the channel type is set and it does not match, skip it
-                    if (volume_set.audio_channel_type != audio_device_type::uknown && channel.type != volume_set.audio_channel_type)
-                    {
-                        continue;
-                    }
-
-                    if (volume_set.audio_channels.size() == 0)
-                    {
-                        audio_device_volume_set_visitor visitor = create_visitor_object(volume, control, channel, volume_set);
-
-                        if (!visitors.contains(visitor.id) || visitors[visitor.id].property_set_count < visitor.property_set_count)
-                            visitors[visitor.id] = visitor;
-
-                        continue;
-                    }
-
-                    for (auto& channel_set : volume_set.audio_channels)
-                    {
-                        if (channel_set != channel.id)
-                        {
-                            continue;
-                        }
-
-                        audio_device_volume_set_visitor visitor = create_visitor_object(volume, control, channel, volume_set);
-
-                        if (!visitors.contains(visitor.id) || visitors[visitor.id].property_set_count < visitor.property_set_count)
-                            visitors[visitor.id] = visitor;
-                    }
-                }
-            }
-        }
-    }
-
-    std::vector<audio_device_volume_set_visitor> visitors_vect;
-    for (const auto& v : visitors)
-    {
-        visitors_vect.push_back(v.second);
-    }
-
-    return visitors_vect;
-}
-
-void adjust_volume(args& args, audio_device_volume_info& volume, audio_device_volume_control& control, audio_device_channel& channel, audio_device_volume_set& volume_set)
-{
-    channel.volume = volume_set.volume;
-
-    try_set_audio_device_volume(volume.audio_device, control, channel);                        
-
-    if (args.verbose && !args.use_json && !args.no_stdout)
-    {                            
-        audio_device_channel new_channel;
-        if (try_get_audio_device_channel(volume.audio_device, control.name, channel.id, channel.type, new_channel))
-        {
-            print(!args.disable_colors, fmt::emphasis::bold, "    Volume set to \"{}%\" on device \"{}\" for control name \"{}\" and {} channel \"{}\"\n", new_channel.volume, volume.audio_device.hw_id, control.name, to_string(channel.type), channel.name);
-        }
-    }
-}
-
-int adjust_volume(args& args, search_result& result)
+std::vector<audio_device_unique_volume_set> adjust_volume(const args& args, search_result& result)
 {
     if (args.disable_volume_control)
     {
-        return 0;
+        return {};
     }
 
-    if (args.verbose && !args.use_json && !args.no_stdout)
-    {
-        print(!args.disable_colors, fmt::emphasis::bold, "Volume control:\n\n");
-    }
-
-    std::vector<audio_device_volume_set_visitor> visitors_vect = generate_volume_set_visitors(args, result);
+    std::vector<audio_device_unique_volume_set> visitors_vect = generate_unique_volume_set(args, result);
 
     for (auto& visitor : visitors_vect)
     {
         adjust_volume(args, visitor.volume, visitor.control, visitor.channel, visitor.volume_set);
     }
 
-    printf("\n");
+    update_devices_volume(result);
 
-    return 0;
+    return visitors_vect;
 }
 
-int process_devices(args& args)
+int test_volume_control(const args& args, const search_result& result)
 {
-    search_result result = search(args);
+    if (!args.test_volume_control)
+    {
+        return 0;
+    }
 
-    std::string json_output = to_json(result);
+    std::vector<audio_device_unique_volume_set> audio_set_result = generate_unique_volume_set(args, result);
+
+    for (auto& audio_set : audio_set_result)
+    {                            
+        audio_device_channel new_channel;
+        try_get_audio_device_channel(audio_set.volume.audio_device, audio_set.control.name, audio_set.channel.id, audio_set.channel.type, new_channel);
+
+        if (new_channel.volume != audio_set.volume_set.volume)
+        {
+            return 1;
+        }
+    }
+
+    return  0;
+}
+
+void print_adjust_volume_results(const args& args, const std::vector<audio_device_unique_volume_set>& audio_set_result)
+{
+    if (audio_set_result.size() == 0)
+    {
+        return;
+    }
+
+    if (!args.verbose || args.use_json || args.no_stdout)
+    {
+        return;
+    }
+
+    print(!args.disable_colors, fmt::emphasis::bold, "Volume control:\n\n");
+
+    for (auto& audio_set : audio_set_result)
+    {
+        audio_device_channel new_channel;
+        if (try_get_audio_device_channel(audio_set.volume.audio_device, audio_set.control.name, audio_set.channel.id, audio_set.channel.type, new_channel))
+        {
+            print(!args.disable_colors, fmt::emphasis::bold, "    Volume set to \"{}%\" on device \"{}\" for control name \"{}\" and {} channel \"{}\"\n", new_channel.volume, audio_set.volume.audio_device.hw_id, audio_set.control.name, to_string(audio_set.channel.type), audio_set.channel.name);
+        }
+    }
+
+    printf("\n");
+}
+
+void update_devices_volume(search_result& result)
+{
+    for (auto& d : result.devices)
+    {
+        try_get_audio_device_volume(d.first.audio_device, d.first);
+    }
+}
+
+void print(const args& args, const search_result& result, int volume_control_return_value, const std::vector<audio_device_unique_volume_set>& audio_set_result)
+{
+    std::string config_file = std::filesystem::absolute(args.config_file).string();
+
+    if (!args.no_stdout && !args.use_json && args.verbose)
+    {
+        print(!args.disable_colors, fmt::emphasis::bold, "Using config file: \"{}\"\n", config_file);
+    }
+
+    std::string json_output = to_json(args, result, volume_control_return_value);
 
     if (args.use_json && !args.no_stdout)
     {
@@ -1512,12 +1620,33 @@ int process_devices(args& args)
     }
     else
     {
-        print(args, result);
+        print_stdout(args, result);
     }
 
-    int return_value = adjust_volume(args, result);
+    print_adjust_volume_results(args, audio_set_result);
 
     print_to_file(args, json_output);
+}
+
+int process_devices(args& args)
+{
+    search_result result = search(args);
+
+    auto adjust_volume_results = adjust_volume(args, result);    
+
+    int volume_test_return_value = test_volume_control(args, result);
+
+    int return_value = volume_test_return_value;
+
+    print(args, result, volume_test_return_value, adjust_volume_results);
+
+    if (volume_test_return_value == 0)
+    {
+        if (result.devices.size() == 0 && result.ports.size() == 0)
+        {
+           return_value = 1;
+        }
+    }
 
     return return_value;
 }
