@@ -143,9 +143,9 @@ bool try_get_capture_channel_volume(snd_mixer_elem_t* elem, int channel_id, int&
 bool try_set_playback_channel_volume(snd_mixer_elem_t* elem, int channel_id, int value);
 bool try_set_capture_channel_volume(snd_mixer_elem_t* elem, int channel_id, int value);
 bool use_linear_dB_scale(long dBmin, long dBmax);
-int get_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_db_range, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_volume, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_db);
-int get_playback_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id);
-int get_capture_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id);
+bool try_get_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_db_range, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_volume, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_db);
+bool try_get_playback_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result);
+bool try_get_capture_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result);
 bool try_get_channel_volume(snd_mixer_elem_t* elem, int channel_id, int& result, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_volume);
 
 audio_device_type operator|(const audio_device_type& l, const audio_device_type& r)
@@ -626,6 +626,8 @@ bool can_use_audio_device(const audio_device_info& device)
 
 bool try_get_audio_device_volume(const audio_device_info& device, audio_device_volume_info& volume)
 {
+    bool result = true;
+
     volume.audio_device = device;
     volume.controls.clear();
 
@@ -692,15 +694,23 @@ bool try_get_audio_device_volume(const audio_device_info& device, audio_device_v
             if (snd_mixer_selem_has_playback_volume(elem) && snd_mixer_selem_has_playback_channel(elem, (snd_mixer_selem_channel_id_t)channel_id))
             {
                 channel.type = audio_device_type::playback;
-                try_get_playback_channel_volume(elem, channel_id, channel.volume);
-                channel.volume_linearized = get_playback_channel_volume_linearized(elem, channel_id);
+                result = try_get_playback_channel_volume(elem, channel_id, channel.volume);
+                if (!result)
+                    break;
+                result = try_get_playback_channel_volume_linearized(elem, channel_id, channel.volume_linearized);
+                if (!result)
+                    break;
                 volume_control.channels.push_back(channel);
             }
             if (snd_mixer_selem_has_capture_volume(elem) && snd_mixer_selem_has_capture_channel(elem, (snd_mixer_selem_channel_id_t)channel_id))
             {
                 channel.type = audio_device_type::capture;
-                try_get_capture_channel_volume(elem, channel_id, channel.volume);
-                channel.volume_linearized = get_capture_channel_volume_linearized(elem, channel_id);
+                result = try_get_capture_channel_volume(elem, channel_id, channel.volume);
+                if (!result)
+                    break;
+                result = try_get_capture_channel_volume_linearized(elem, channel_id, channel.volume_linearized);
+                if (!result)
+                    break;
                 volume_control.channels.push_back(channel);
             }
 
@@ -716,7 +726,7 @@ bool try_get_audio_device_volume(const audio_device_info& device, audio_device_v
     snd_mixer_selem_id_free(sid);
     snd_mixer_close(handle);
 
-    return true;
+    return result;
 }
 
 bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel& channel)
@@ -871,7 +881,7 @@ bool use_linear_dB_scale(long db_min, long db_max)
 	return (db_max - db_min) <= (MAX_LINEAR_DB_SCALE * 100);
 }
 
-int get_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_db_range, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_volume, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_db)
+bool try_get_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_db_range, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_volume, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_db)
 {
     
     // Some code from this function was copied from https://github.com/alsa-project/alsa-utils/blob/master/alsamixer/volume_mapping.c
@@ -880,7 +890,6 @@ int get_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, std::f
     // See copyright message at the top of this file.
 
     long min, max, value;
-    int result;
     double normalized, min_norm;
     int err;    
 
@@ -890,29 +899,29 @@ int get_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, std::f
         err = get_volume_range(elem, &min, &max);
         if (err < 0 || min == max)
         {
-			return 0;
+			return false;
         }
         err = get_volume(elem, (snd_mixer_selem_channel_id_t)channel_id, &value);
         if (err < 0)
         {
-			return 0;
+			return false;
         }
         double result_double = ((value - min) * 100.0) / (double)(max - min);
         result = (int)std::rint(result_double);
-        return result;
+        return true;
     }
 
     err = get_db(elem, (snd_mixer_selem_channel_id_t)channel_id, &value);
     if (err < 0)
     {
-		return 0;
+		return false;
     }
 
     if (use_linear_dB_scale(min, max))
     {
 		double result_double = ((value - min) * 100.0) / (double)(max - min);
         result = (int)std::rint(result_double);
-        return result;
+        return true;
     }
     
    	normalized = pow(10, (value - max) / 6000.0);
@@ -924,21 +933,21 @@ int get_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, std::f
     
     result = (int)std::rint(normalized * 100.0);
 
-    return result;
+    return true;
 }
 
-int get_playback_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id)
+bool try_get_playback_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result)
 {
-    return get_channel_volume_linearized(elem, channel_id,
+    return try_get_channel_volume_linearized(elem, channel_id, result,
         [](snd_mixer_elem_t *elem, long *min, long *max) { return snd_mixer_selem_get_playback_dB_range(elem, min, max); },
         [](snd_mixer_elem_t *elem, long *min, long *max) { return snd_mixer_selem_get_playback_volume_range(elem, min, max); },
         [](snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value) { return snd_mixer_selem_get_playback_volume(elem, channel, value); },
         [](snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value) { return snd_mixer_selem_get_playback_dB(elem, channel, value); });
 }
 
-int get_capture_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id)
+bool try_get_capture_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result)
 {
-    return get_channel_volume_linearized(elem, channel_id,
+    return try_get_channel_volume_linearized(elem, channel_id, result,
         [](snd_mixer_elem_t *elem, long *min, long *max) { return snd_mixer_selem_get_capture_dB_range(elem, min, max); },
         [](snd_mixer_elem_t *elem, long *min, long *max) { return snd_mixer_selem_get_capture_volume_range(elem, min, max); },
         [](snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value) { return snd_mixer_selem_get_capture_volume(elem, channel, value); },
@@ -1012,8 +1021,19 @@ bool try_set_capture_channel_volume(snd_mixer_elem_t* elem, int channel_id, int 
 }
 
 std::string to_json(const audio_device_volume_info& d, bool wrapping_object, int tabs);
+std::string to_json(const audio_device_volume_info& d, std::function<std::string(const audio_device_volume_info& d)> render_device, std::function<std::string(const audio_device_volume_info& d, const audio_device_volume_control& c)> render_control, std::function<std::string(const audio_device_volume_info& d, const audio_device_volume_control& c, const audio_device_channel& ch)> render_channel, bool wrapping_object, int tabs);
 
 std::string to_json(const audio_device_volume_info& d, bool wrapping_object, int tabs)
+{
+    return to_json(d,
+        std::function<std::string(const audio_device_volume_info&)>{},
+        std::function<std::string(const audio_device_volume_info&, const audio_device_volume_control&)>{},
+        std::function<std::string(const audio_device_volume_info&, const audio_device_volume_control&, const audio_device_channel&)>{},
+        wrapping_object,
+        tabs);
+}
+
+std::string to_json(const audio_device_volume_info& d, std::function<std::string(const audio_device_volume_info& d)> render_device, std::function<std::string(const audio_device_volume_info& d, const audio_device_volume_control& c)> render_control, std::function<std::string(const audio_device_volume_info& d, const audio_device_volume_control& c, const audio_device_channel& ch)> render_channel, bool wrapping_object, int tabs)
 {
     std::string s;
     if (wrapping_object)
@@ -1027,11 +1047,27 @@ std::string to_json(const audio_device_volume_info& d, bool wrapping_object, int
     s.append("    \"name\": \"" + d.audio_device.name + "\",\n");
     s.append("    \"description\": \"" + d.audio_device.description + "\",\n");
     s.append("    \"type\": \"" + to_string(d.audio_device.type) + "\",\n");
+    if (render_device)
+    {
+        std::string render_device_string = render_device(d);
+        if (!render_device_string.empty())
+        {
+            s.append(render_device_string);
+        }
+    }
     s.append("    \"controls\": [\n");
     for (size_t i = 0; i < d.controls.size(); i++)
     {
         s.append("        {\n");
         s.append("            \"name\": \"" + d.controls[i].name + "\",\n");
+        if (render_control)
+        {
+            std::string render_control_string = render_control(d, d.controls[i]);
+            if (!render_control_string.empty())
+            {
+                s.append(render_control_string);
+            }
+        }
         s.append("            \"channels\": [\n");
         for (size_t j = 0; j < d.controls[i].channels.size(); j++)
         {
@@ -1039,7 +1075,24 @@ std::string to_json(const audio_device_volume_info& d, bool wrapping_object, int
             s.append("                    \"name\": \"" + d.controls[i].channels[j].name + "\",\n");
             s.append("                    \"type\": \"" + to_string(d.controls[i].channels[j].type) + "\",\n");
             s.append("                    \"volume\": \"" + std::to_string(d.controls[i].channels[j].volume) + "\",\n");
-            s.append("                    \"channel\": \"" + to_string(d.controls[i].channels[j].id) + "\"\n");
+            s.append("                    \"channel\": \"" + to_string(d.controls[i].channels[j].id) + "\"");
+            if (render_channel)
+            {
+                std::string render_channel_string = render_channel(d, d.controls[i], d.controls[i].channels[j]);
+                if (!render_channel_string.empty())
+                {
+                    s.append(",\n");
+                    s.append(render_channel_string);
+                }
+                else
+                {
+                    s.append("\n");
+                }
+            }
+            else
+            {
+                s.append("\n");
+            }
             s.append("                }");
             if ((j + 1) < d.controls[i].channels.size())
                 s.append(",");
