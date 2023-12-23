@@ -1,31 +1,51 @@
-    {
-        "$schema": "config_schema.json",
-        "search_criteria":
-        {
-            "audio":
-            {
-                "name": "",
-                "desc": "",
-                "bus": "",
-                "device": "",
-                "topology_depth": "",
+{
+  "$schema": "config_schema.json",
+  "search_criteria": {
+    "audio": {
+      "name": "",
+      "stream_name": "",
+      "desc": "",
+      "bus": "",
+      "device": "",
+      "topology_depth": "",
                 "path": "",
-                "type": "playback|capture"
-            },
-            "port":
-            {
-                "name": "",
-                "desc": "",
-                "bus": "",
-                "device": "",
-                "topology_depth": "",
-                "path": "",
-                "serial": ""
-            }
-        },
-        "search_mode": "independent",
-        "list_properties": "false",
-        "included_devices": "all",
-        "use_json": "false",
-        "output_file": "output.json"
+      "type": "playback|capture"
+    },
+    "port": {
+      "name": "",
+      "desc": "",
+      "bus": "",
+      "device": "",
+      "topology_depth": "",
+      "path": "",
+      "serial": ""
     }
+  },
+  "search_mode": "independent",
+  "list_properties": "false",
+  "included_devices": "all",
+  "use_json": "false",
+  "output_file": "output.json",
+  "volume_control": {
+    "capture_value": "10",
+    "playback_value": "15",
+    "capture_value_test_max_error": "5",
+    "playback_value_test_max_error": "5",
+    "controls": [
+      {
+        "name": "Speaker",
+        "capture_value": "20",
+        "playback_value": "25",
+        "capture_value_test_max_error": "5",
+        "playback_value_test_max_error": "5",
+        "channel": {
+          "name": "Front Left",
+          "capture_value": "34",
+          "playback_value": "45",
+          "capture_value_test_max_error": "5",
+          "playback_value_test_max_error": "5"
+        }
+      }
+    ]
+  }
+}

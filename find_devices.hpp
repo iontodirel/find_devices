@@ -141,6 +141,7 @@ struct audio_device_channel
 {
     std::string name;
     int volume = 0;
+    int volume_linearized = 0;
     audio_device_type type = audio_device_type::uknown;
     audio_device_channel_id id = audio_device_channel_id::none;
 };

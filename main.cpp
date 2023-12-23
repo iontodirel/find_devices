@@ -40,6 +40,7 @@
 #include <iostream>
 #include <fstream>
 #include <map>
+#include <cmath>
 
 #include <nlohmann/json.hpp>
 #include <fmt/format.h>
@@ -164,6 +165,7 @@ struct audio_device_volume_set
     std::vector<audio_device_channel_id> audio_channels;
     audio_device_type audio_channel_type = audio_device_type::uknown;
     int volume = -1;
+    int volume_max_error = 0;
 };
 
 struct audio_device_unique_volume_set
@@ -1081,6 +1083,10 @@ void parse_volume_control(args& args, const nlohmann::json& j)
                 audio_device_volume_set capture_set;
                 try_parse_number(volume_control.value("capture_value", ""), capture_set.volume);
                 capture_set.audio_channel_type = audio_device_type::capture;
+                if (volume_control.contains("capture_value_test_max_error"))
+                {
+                    try_parse_number(volume_control.value("capture_value_test_max_error", ""), capture_set.volume_max_error);
+                }
                 args.volume_set.push_back(capture_set);
             }
             if (volume_control.contains("playback_value"))
@@ -1088,6 +1094,10 @@ void parse_volume_control(args& args, const nlohmann::json& j)
                 audio_device_volume_set playback_value;
                 try_parse_number(volume_control.value("playback_value", ""), playback_value.volume);
                 playback_value.audio_channel_type = audio_device_type::playback;
+                if (volume_control.contains("playback_value_test_max_error"))
+                {
+                    try_parse_number(volume_control.value("playback_value_test_max_error", ""), playback_value.volume_max_error);
+                }
                 args.volume_set.push_back(playback_value);
             }
             if (volume_control.contains("controls"))
@@ -1117,6 +1127,10 @@ void parse_volume_control(args& args, const nlohmann::json& j)
                         capture_set.control_name = control_name.value();
                         capture_set.volume = control_capture_value.value();
                         capture_set.audio_channel_type = audio_device_type::capture;
+                        if (control.contains("capture_value_test_max_error"))
+                        {
+                            try_parse_number(control.value("capture_value_test_max_error", ""), capture_set.volume_max_error);
+                        }
                         args.volume_set.push_back(capture_set);
                     }   
 
@@ -1126,6 +1140,10 @@ void parse_volume_control(args& args, const nlohmann::json& j)
                         playback_set.control_name = control_name.value();
                         playback_set.volume = control_playback_value.value();
                         playback_set.audio_channel_type = audio_device_type::playback;
+                        if (control.contains("playback_value_test_max_error"))
+                        {
+                            try_parse_number(control.value("playback_value_test_max_error", ""), playback_set.volume_max_error);
+                        }
                         args.volume_set.push_back(playback_set);
                     }
 
@@ -1154,6 +1172,10 @@ void parse_volume_control(args& args, const nlohmann::json& j)
                             capture_set.control_name = control_name.value_or(std::string{});
                             capture_set.volume = channel_capture_value.value();
                             capture_set.audio_channel_type = audio_device_type::capture;                            
+                            if (channel.contains("capture_value_test_max_error"))
+                            {
+                                try_parse_number(channel.value("capture_value_test_max_error", ""), capture_set.volume_max_error);
+                            }                     
                             audio_device_channel_id channel_id;
                             if (try_parse_audio_device_channel_display_name(channel_name.value(), channel_id))
                             {
@@ -1168,6 +1190,10 @@ void parse_volume_control(args& args, const nlohmann::json& j)
                             playback_set.control_name = control_name.value_or(std::string{});
                             playback_set.volume = channel_playback_value.value();
                             playback_set.audio_channel_type = audio_device_type::playback;                            
+                            if (channel.contains("playback_value_test_max_error"))
+                            {
+                                try_parse_number(channel.value("playback_value_test_max_error", ""), playback_set.volume_max_error);
+                            }                              
                             audio_device_channel_id channel_id;
                             if (try_parse_audio_device_channel_display_name(channel_name.value(), channel_id))
                             {
@@ -1553,7 +1579,8 @@ int test_volume_control(const args& args, const search_result& result)
         audio_device_channel new_channel;
         try_get_audio_device_channel(audio_set.volume.audio_device, audio_set.control.name, audio_set.channel.id, audio_set.channel.type, new_channel);
 
-        if (new_channel.volume != audio_set.volume_set.volume)
+        if (!(new_channel.volume < (audio_set.volume_set.volume + audio_set.volume_set.volume_max_error) &&
+            new_channel.volume > std::abs(audio_set.volume_set.volume - audio_set.volume_set.volume_max_error)))
         {
             return 1;
         }
@@ -1581,7 +1608,8 @@ void print_adjust_volume_results(const args& args, const std::vector<audio_devic
         audio_device_channel new_channel;
         if (try_get_audio_device_channel(audio_set.volume.audio_device, audio_set.control.name, audio_set.channel.id, audio_set.channel.type, new_channel))
         {
-            print(!args.disable_colors, fmt::emphasis::bold, "    Volume set to \"{}%\" on device \"{}\" for control name \"{}\" and {} channel \"{}\"\n", new_channel.volume, audio_set.volume.audio_device.hw_id, audio_set.control.name, to_string(audio_set.channel.type), audio_set.channel.name);
+            double percentage_error = ((new_channel.volume - audio_set.volume_set.volume) / (audio_set.volume_set.volume * 1.0)) * 100.0;
+            print(!args.disable_colors, fmt::emphasis::bold, "    Volume set to \"{}%\" ({}% error) on device \"{}\" for control name \"{}\" and {} channel \"{}\"\n", new_channel.volume, percentage_error, audio_set.volume.audio_device.hw_id, audio_set.control.name, to_string(audio_set.channel.type), audio_set.channel.name);
         }
     }
 
@@ -1600,7 +1628,7 @@ void print(const args& args, const search_result& result, int volume_control_ret
 {
     std::string config_file = std::filesystem::absolute(args.config_file).string();
 
-    if (!args.no_stdout && !args.use_json && args.verbose)
+    if (!args.no_stdout && !args.use_json && args.verbose && !args.ignore_config)
     {
         print(!args.disable_colors, fmt::emphasis::bold, "Using config file: \"{}\"\n", config_file);
     }
