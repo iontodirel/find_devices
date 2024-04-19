@@ -60,9 +60,9 @@
 namespace
 {
     template <typename... Args>
-    void print(bool enable_colors, const fmt::text_style& ts, const Args&... args)
+    void print(bool enable_colors, const fmt::text_style& ts, fmt::format_string<Args...> fmt, Args&&... args)
     {
-        fmt::print(enable_colors ? ts : fmt::text_style(), args...);
+        fmt::print(enable_colors ? ts : fmt::text_style(), fmt, std::forward<Args>(args)...);
     }
 
     template<class F, class ...Args>
