@@ -747,8 +747,6 @@ bool try_set_audio_device_volume(const audio_device_info& device, const std::str
     snd_mixer_t* handle;
     snd_mixer_selem_id_t* sid;
 
-    snd_mixer_open(&handle, 0);
-
     // NOTE: can get the error message with snd_strerror(err)
 
     if ((err = snd_mixer_open(&handle, 0)) < 0)
