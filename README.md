@@ -179,6 +179,10 @@ The bash script in this repositry has an example about retrieving a volume contr
 
 The example uses find_devices to write the volume controls to JSON. For each volume control, we print the name, type and value, and we set it to 100%.
 
+To change the volume via command line: `find_devices --audio.control Speakers --audio.channels="Front Left,Front Center" --audio.volume 60 --audio.channel-type=capture`
+
+You can also change the volume of all capture channels without specifying the control or channel name: `find_devices --audio.volume 100 --audio.channel-type=capture`
+
 To change a volume control using amixer: `amixer -c 0 sset Speaker 100%`
 
 ### Scripting example

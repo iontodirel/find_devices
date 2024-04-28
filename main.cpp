@@ -1674,8 +1674,8 @@ bool test_volume_control(const args& args, const search_result& result)
             return false;
         }
 
-        if (!(new_channel.volume < (audio_set.volume_set.volume + audio_set.volume_set.volume_max_error) &&
-            new_channel.volume > std::abs(audio_set.volume_set.volume - audio_set.volume_set.volume_max_error)))
+        if (!(new_channel.volume <= (audio_set.volume_set.volume + audio_set.volume_set.volume_max_error) &&
+            new_channel.volume >= std::abs(audio_set.volume_set.volume - audio_set.volume_set.volume_max_error)))
         {
             return false;
         }
