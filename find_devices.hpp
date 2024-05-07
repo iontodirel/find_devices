@@ -49,7 +49,7 @@ namespace
 {
     bool try_parse_number(std::string str, int& number)
     {
-        if (str.size() == 0)
+        if (str.empty())
             return false;
         int maybe_number = -1;
         std::istringstream iss(str);
@@ -141,8 +141,11 @@ bool try_parse_audio_device_channel_display_name(const std::string& channel_str,
 struct audio_device_channel
 {
     std::string name;
-    int volume = 0;
-    int volume_linearized = 0;
+    int volume_percent = 0;
+    int volume_percent_linearized = 0;
+    int volume;
+    int volume_min;
+    int volume_max;
     audio_device_type type = audio_device_type::uknown;
     audio_device_channel_id id = audio_device_channel_id::none;
 };
