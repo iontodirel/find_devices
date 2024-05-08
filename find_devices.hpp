@@ -1,4 +1,4 @@
-﻿// **************************************************************** //
+// **************************************************************** //
 // find_devices - Audio device and serial ports search utility      // 
 // Version 0.1.0                                                    //
 // https://github.com/iontodirel/find_devices                       //
@@ -163,7 +163,7 @@ struct audio_device_volume_info
 };
 
 bool try_get_audio_device_volume(const audio_device_info& device, audio_device_volume_info& volume);
-bool try_set_audio_device_volume(const audio_device_info& device, int volume); // todo: implement
+bool try_set_audio_device_volume(const audio_device_info& device, int volume);
 bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel& channel);
 bool try_set_audio_device_volume(const audio_device_info& device, const audio_device_volume_control& control, const audio_device_channel& channel);
 bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel_id& channel, const audio_device_type& channel_type, int value);

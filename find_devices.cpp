@@ -140,13 +140,14 @@ int parse_audio_device_channel_type(audio_device_channel_id type);
 int get_playback_channel_volume(snd_mixer_elem_t* elem, int channel_id);
 bool try_get_playback_channel_volume(snd_mixer_elem_t* elem, int channel_id, audio_device_channel& result);
 bool try_get_capture_channel_volume(snd_mixer_elem_t* elem, int channel_id, audio_device_channel& result);
-bool try_set_playback_channel_volume(snd_mixer_elem_t* elem, int channel_id, int value);
-bool try_set_capture_channel_volume(snd_mixer_elem_t* elem, int channel_id, int value);
+bool try_set_playback_channel_volume_percent(snd_mixer_elem_t* elem, int channel_id, int value);
+bool try_set_capture_channel_volume_percent(snd_mixer_elem_t* elem, int channel_id, int value);
 bool use_linear_dB_scale(long dBmin, long dBmax);
-bool try_get_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_db_range, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_volume, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_db);
-bool try_get_playback_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result);
-bool try_get_capture_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result);
+bool try_get_channel_volume_percent_linearized(snd_mixer_elem_t* elem, int channel_id, int& result, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_db_range, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_volume, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_db);
+bool try_get_playback_channel_volume_percent_linearized(snd_mixer_elem_t* elem, int channel_id, int& result);
+bool try_get_capture_channel_volume_percent_linearized(snd_mixer_elem_t* elem, int channel_id, int& result);
 bool try_get_channel_volume(snd_mixer_elem_t* elem, int channel_id, audio_device_channel& result, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_volume);
+bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel_id& channel, const audio_device_type& channel_type, int volume, std::function<bool((snd_mixer_elem_t* elem, int channel_id, int value))> playback_setter, std::function<bool((snd_mixer_elem_t* elem, int channel_id, int value))> capture_setter);
 
 audio_device_type operator|(const audio_device_type& l, const audio_device_type& r)
 {
@@ -697,7 +698,7 @@ bool try_get_audio_device_volume(const audio_device_info& device, audio_device_v
                 result = try_get_playback_channel_volume(elem, channel_id, channel);
                 if (!result)
                     break;
-                result = try_get_playback_channel_volume_linearized(elem, channel_id, channel.volume_percent_linearized);
+                result = try_get_playback_channel_volume_percent_linearized(elem, channel_id, channel.volume_percent_linearized);
                 if (!result)
                     break;
                 volume_control.channels.push_back(channel);
@@ -708,7 +709,7 @@ bool try_get_audio_device_volume(const audio_device_info& device, audio_device_v
                 result = try_get_capture_channel_volume(elem, channel_id, channel);
                 if (!result)
                     break;
-                result = try_get_capture_channel_volume_linearized(elem, channel_id, channel.volume_percent_linearized);
+                result = try_get_capture_channel_volume_percent_linearized(elem, channel_id, channel.volume_percent_linearized);
                 if (!result)
                     break;
                 volume_control.channels.push_back(channel);
@@ -729,6 +730,29 @@ bool try_get_audio_device_volume(const audio_device_info& device, audio_device_v
     return result;
 }
 
+bool try_set_audio_device_volume(const audio_device_info& device, int volume)
+{
+    audio_device_volume_info audio_device_volume;
+    if (!try_get_audio_device_volume(device, audio_device_volume))
+    {
+        return false;
+    }
+
+    for (const auto& control : audio_device_volume.controls)
+    {
+        for (auto channel : control.channels)
+        {
+            channel.volume_percent = volume;
+            if (!try_set_audio_device_volume(device, control, channel))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel& channel)
 {
     return try_set_audio_device_volume(device, control_name, channel.id, channel.type, channel.volume_percent);
@@ -739,7 +763,7 @@ bool try_set_audio_device_volume(const audio_device_info& device, const audio_de
     return try_set_audio_device_volume(device, control.name, channel.id, channel.type, channel.volume_percent);
 }
 
-bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel_id& channel, const audio_device_type& channel_type, int volume)
+bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel_id& channel, const audio_device_type& channel_type, int volume, std::function<bool((snd_mixer_elem_t* elem, int channel_id, int value))> playback_setter, std::function<bool((snd_mixer_elem_t* elem, int channel_id, int value))> capture_setter)
 {
     bool result = true;
 
@@ -791,12 +815,12 @@ bool try_set_audio_device_volume(const audio_device_info& device, const std::str
 
         if (channel_type == audio_device_type::playback && snd_mixer_selem_has_playback_volume(elem) && snd_mixer_selem_has_playback_channel(elem, (snd_mixer_selem_channel_id_t)channel_id))
         {
-            result = try_set_playback_channel_volume(elem, channel_id, volume);
+            result = playback_setter(elem, channel_id, volume);
             break;
         }
         else if (channel_type == audio_device_type::capture && snd_mixer_selem_has_capture_volume(elem) && snd_mixer_selem_has_capture_channel(elem, (snd_mixer_selem_channel_id_t)channel_id))
         {
-            result = try_set_capture_channel_volume(elem, channel_id, volume);
+            result = capture_setter(elem, channel_id, volume);
             break;
         }
         else
@@ -810,6 +834,13 @@ bool try_set_audio_device_volume(const audio_device_info& device, const std::str
     snd_mixer_close(handle);
 
     return result;
+}
+
+bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel_id& channel, const audio_device_type& channel_type, int volume)
+{
+    return try_set_audio_device_volume(device, control_name, channel, channel_type, volume,
+        [](snd_mixer_elem_t* elem, int channel_id, int value) { return try_set_playback_channel_volume_percent(elem, channel_id, value); },
+        [](snd_mixer_elem_t* elem, int channel_id, int value) { return try_set_capture_channel_volume_percent(elem, channel_id, value); });
 }
 
 audio_device_channel_id parse_audio_device_channel_id(int channel_id)
@@ -879,7 +910,7 @@ bool use_linear_dB_scale(long db_min, long db_max)
 	return (db_max - db_min) <= (MAX_LINEAR_DB_SCALE * 100);
 }
 
-bool try_get_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_db_range, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_volume, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_db)
+bool try_get_channel_volume_percent_linearized(snd_mixer_elem_t* elem, int channel_id, int& result, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_db_range, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_volume, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value)> get_db)
 {
     
     // Some code from this function was copied from https://github.com/alsa-project/alsa-utils/blob/master/alsamixer/volume_mapping.c
@@ -934,18 +965,18 @@ bool try_get_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, i
     return true;
 }
 
-bool try_get_playback_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result)
+bool try_get_playback_channel_volume_percent_linearized(snd_mixer_elem_t* elem, int channel_id, int& result)
 {
-    return try_get_channel_volume_linearized(elem, channel_id, result,
+    return try_get_channel_volume_percent_linearized(elem, channel_id, result,
         [](snd_mixer_elem_t *elem, long *min, long *max) { return snd_mixer_selem_get_playback_dB_range(elem, min, max); },
         [](snd_mixer_elem_t *elem, long *min, long *max) { return snd_mixer_selem_get_playback_volume_range(elem, min, max); },
         [](snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value) { return snd_mixer_selem_get_playback_volume(elem, channel, value); },
         [](snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value) { return snd_mixer_selem_get_playback_dB(elem, channel, value); });
 }
 
-bool try_get_capture_channel_volume_linearized(snd_mixer_elem_t* elem, int channel_id, int& result)
+bool try_get_capture_channel_volume_percent_linearized(snd_mixer_elem_t* elem, int channel_id, int& result)
 {
-    return try_get_channel_volume_linearized(elem, channel_id, result,
+    return try_get_channel_volume_percent_linearized(elem, channel_id, result,
         [](snd_mixer_elem_t *elem, long *min, long *max) { return snd_mixer_selem_get_capture_dB_range(elem, min, max); },
         [](snd_mixer_elem_t *elem, long *min, long *max) { return snd_mixer_selem_get_capture_volume_range(elem, min, max); },
         [](snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value) { return snd_mixer_selem_get_capture_volume(elem, channel, value); },
@@ -974,9 +1005,9 @@ bool try_get_channel_volume(snd_mixer_elem_t* elem, int channel_id, audio_device
     return true;
 }
 
-bool try_set_channel_volume(snd_mixer_elem_t* elem, int channel_id, int value, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long value)> set_volume)
+bool try_set_channel_volume_percent(snd_mixer_elem_t* elem, int channel_id, int value, std::function<int(snd_mixer_elem_t *elem, long *min, long *max)> get_volume_range, std::function<int(snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long value)> set_volume)
 {
-    long min = 0, max = 100;
+    long min = 0, max = 0;
     int err;
     err = get_volume_range(elem, &min, &max);
     if (err < 0)
@@ -1000,9 +1031,9 @@ bool try_get_playback_channel_volume(snd_mixer_elem_t* elem, int channel_id, aud
         [](snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value) { return snd_mixer_selem_get_playback_volume(elem, channel, value); });
 }
 
-bool try_set_playback_channel_volume(snd_mixer_elem_t* elem, int channel_id, int value)
+bool try_set_playback_channel_volume_percent(snd_mixer_elem_t* elem, int channel_id, int value)
 {
-    return try_set_channel_volume(elem, channel_id, value,
+    return try_set_channel_volume_percent(elem, channel_id, value,
         [](snd_mixer_elem_t *elem, long *min, long *max) { return snd_mixer_selem_get_playback_volume_range(elem, min, max); },
         [](snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long value) { return snd_mixer_selem_set_playback_volume(elem, channel, value); });
 }
@@ -1014,9 +1045,9 @@ bool try_get_capture_channel_volume(snd_mixer_elem_t* elem, int channel_id, audi
         [](snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long *value) { return snd_mixer_selem_get_capture_volume(elem, channel, value); });
 }
 
-bool try_set_capture_channel_volume(snd_mixer_elem_t* elem, int channel_id, int value)
+bool try_set_capture_channel_volume_percent(snd_mixer_elem_t* elem, int channel_id, int value)
 {
-    return try_set_channel_volume(elem, channel_id, value,
+    return try_set_channel_volume_percent(elem, channel_id, value,
         [](snd_mixer_elem_t *elem, long *min, long *max) { return snd_mixer_selem_get_capture_volume_range(elem, min, max); },
         [](snd_mixer_elem_t *elem, snd_mixer_selem_channel_id_t channel, long value) { return snd_mixer_selem_set_capture_volume(elem, channel, value); });
 }

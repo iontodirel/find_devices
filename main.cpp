@@ -1231,6 +1231,8 @@ void parse_volume_control(args& args, const nlohmann::json& j)
             parse_volume_control(args, control, "capture_value_percent", "capture_value_test_max_error", audio_device_type::capture);
             parse_volume_control(args, control, "playback_value_percent", "playback_value_test_max_error", audio_device_type::playback);
 
+            if (control.contains("channels"))
+            {
             nlohmann::json channels = control["channels"];
             for (const nlohmann::json& channel : channels)
                             {
@@ -1239,6 +1241,7 @@ void parse_volume_control(args& args, const nlohmann::json& j)
             }
         }        
     }
+}
 }
 
 // **************************************************************** //
@@ -1619,16 +1622,16 @@ bool test_volume_control(const args& args, const search_result& result)
 
     for (auto& audio_set : audio_set_result)
     {                            
-        audio_device_channel new_channel;
-        try_get_audio_device_channel(audio_set.volume.audio_device, audio_set.control.name, audio_set.channel.id, audio_set.channel.type, new_channel);
+        audio_device_channel channel;
+        try_get_audio_device_channel(audio_set.volume.audio_device, audio_set.control.name, audio_set.channel.id, audio_set.channel.type, channel);
 
-        if (audio_set.volume_set.volume_max_error == 0 && new_channel.volume_percent != audio_set.volume_set.volume)
+        if (audio_set.volume_set.volume_max_error == 0 && channel.volume_percent != audio_set.volume_set.volume)
         {
             return false;
         }
 
-        if (!(new_channel.volume_percent <= (audio_set.volume_set.volume + audio_set.volume_set.volume_max_error) &&
-            new_channel.volume_percent >= std::abs(audio_set.volume_set.volume - audio_set.volume_set.volume_max_error)))
+        if (!(channel.volume_percent <= (audio_set.volume_set.volume + audio_set.volume_set.volume_max_error) &&
+            channel.volume_percent >= std::abs(audio_set.volume_set.volume - audio_set.volume_set.volume_max_error)))
         {
             return false;
         }
@@ -1687,28 +1690,31 @@ std::vector<audio_device_volume_probe> probe_volume_control(const args& args, co
         return {};
     }
 
-    for (auto& device : result.devices)
+    for (const auto& device : result.devices)
     {
-        for (auto& control : device.first.controls)
+        for (const auto& control : device.first.controls)
         {
-            for (auto& channel : control.channels)
+            for (auto channel : control.channels)
             {
+                int initial_volume_value = channel.volume_percent;
+
                 for (int i = 0; i <= 100; i++)
                 {
-                    audio_device_channel set_channel = channel;
-                    set_channel.volume = i;
-                    try_set_audio_device_volume(device.first.audio_device, control, set_channel);
+                    channel.volume_percent = i;
 
-                    audio_device_channel get_channel;
-                    try_get_audio_device_channel(device.first.audio_device, control.name, channel.id, channel.type, get_channel);
+                    try_set_audio_device_volume(device.first.audio_device, control, channel);
+                    try_get_audio_device_channel(device.first.audio_device, control.name, channel.id, channel.type, channel);
 
                     audio_device_volume_probe probe;
                     probe.set_volume = i;
-                    probe.retrieved_volume = get_channel.volume;
+                    probe.retrieved_volume = channel.volume_percent;
                     probe.unique_channel_id = create_unique_channel_id(device.first.audio_device, control, channel);
 
                     probe_result.push_back(probe);
                 }
+
+                channel.volume_percent = initial_volume_value;
+                try_set_audio_device_volume(device.first.audio_device, control, channel);
             }
         }
     }
