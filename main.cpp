@@ -1163,14 +1163,13 @@ void parse_volume_control(args& args, const nlohmann::json& control, const std::
     args.volume_set.push_back(volume_set);
             }
 
-void parse_volume_control(args& args, const nlohmann::json& control, const std::string& control_name, const std::string& property_name, const std::string& err_property_name, audio_device_type type)
+void parse_volume_control(args& args, const nlohmann::json& control, const std::string& control_name, const std::string& property_name, const std::string&  err_property_name, audio_device_type type)
             {
     audio_device_volume_set volume_set;
     parse_volume_control(args, control, control_name, property_name, err_property_name, type, volume_set);
                 }
 
-
-void parse_volume_control(args& args, const nlohmann::json& control, const std::string& property_name, const std::string& err_property_name, audio_device_type type, audio_device_volume_set& volume_set)
+void parse_volume_control(args& args, const nlohmann::json& control, const std::string& property_name, const std::string& err_property_name, audio_device_type type, audio_device_volume_set &volume_set)
             {
     std::string control_name;
                     if (control.contains("name"))
