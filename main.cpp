@@ -242,6 +242,10 @@ struct args
     bool disable_volume_control = false;
     bool test_volume_control = false;
     bool probe_volume_control = false;
+    std::string direwolf_output_file;
+    std::string direwolf_callsign;
+    int direwolf_agwport = -1;
+    int direwolf_kissport = -1;
 };
 
 struct search_result
@@ -946,7 +950,11 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "port.topology", {"port.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.topology"].as<std::string>(), args.port_filter.topology); }}},
         { "port.path", {"port.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.path = result["port.path"].as<std::string>(); }}},
         { "port.serial", {"port.serial", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.device_serial_number = result["port.serial"].as<std::string>(); }}},
-        { "port.mfn", {"port.mfn", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.manufacturer_filter = result["port.mfn"].as<std::string>(); }}}
+        { "port.mfn", {"port.mfn", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.manufacturer_filter = result["port.mfn"].as<std::string>(); }}},
+        { "direwolf-config", {"direwolf-config", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.direwolf_output_file = result["direwolf-config"].as<std::string>(); }}},
+        { "direwolf.agwport", {"direwolf.agwport", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["direwolf.agwport"].as<std::string>(), args.direwolf_agwport); }}},
+        { "direwolf.kissport", {"direwolf.kissport", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["direwolf.kissport"].as<std::string>(), args.direwolf_kissport); }}},
+        { "direwolf.callsign", {"direwolf.callsign", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.direwolf_callsign = result["direwolf.callsign"].as<std::string>(); }}}
     };
 
     if (has_volume_control_options(argc, argv))
@@ -1259,8 +1267,9 @@ bool test_volume_control(const args& args, const search_result& result);
 void print_adjust_volume_results(const args& args, const std::vector<audio_device_unique_volume_set>& audio_set_result);
 void update_devices_volume(search_result& result);
 void print(const args& args, const search_result& result, int volume_control_return_value, const std::vector<audio_device_unique_volume_set>& audio_set_result);
-int process_devices(args& args);
+int process_devices(const args& args);
 void print_version();
+void generate_direwolf_output_file(const args& args, const search_result& result);
 
 int main(int argc, char* argv[])
 {
@@ -1312,66 +1321,70 @@ void print_usage()
         "    find_devices [OPTION]... \n"
         "\n"
         "Options:\n"
-        "    --audio.name <name>            search filter: partial or complete name of the audio device\n"
-        "    --audio.stream-name <name>     search filter: partial or complete name of the audio stream name\n"
-        "    --audio.desc <description>     search filter: partial or complete description of the audio device\n"
-        "    --audio.type <type>            search filter: types of audio devices to find: playback, capture, playback|capture, playback&capture:\n"
-        "                                       playback - playback only\n"
-        "                                       capture - capture only\n"
-        "                                       \"playback|capture\" - playback or capture\n"
-        "                                       \"playback&capture\" - playback and capture\n"
-        "                                       all\n"
-        "    --audio.bus <number>           search filter: audio device bus number\n"
-        "    --audio.device <number>        search filter: audio device number\n"
-        "    --audio.path <path>            search filter: audio device hardware system path\n"
-        "    --audio.topology <number>      search filter: the depth of the audio device topology, in the device tree\n"
-        "    --audio.control <name>         used to set a value on the audio device; this property is used to select the audio control to set\n"
-        "    --audio.channels <channels>    used to set a value on the audio device; this property is used to select the audio channels to set\n"
-        "    --audio.volume <volume>        used to set a value on the audio device; this property is used to set the audio volume\n"
-        "                                   on all devices that match --audio.control, --audio.channels and --audio.channel-type.\n"
-        "    --audio.channel-type <type>    used to set a value on the audio device; this property is used to select the channel type\n"
-        "                                       playback - playback only\n"
-        "                                       capture - capture only\n"
-        "                                       all\n"
-        "    --audio.disable-volume-control disable setting the audio device volume\n"
-        "    --port.name <name>             search filter: partial or complete name of the serial port\n"
-        "    --port.desc <description>      search filter: partial or complete description of the serial port\n"
-        "    --port.bus <number>            search filter: serial port bus number\n"
-        "    --port.device <number>         search filter: serial port device number\n"
-        "    --port.topology <number>       search filter: the depth of the serial port device topology, in the device tree\n"
-        "    --port.path <path>             search filter: serial port hardware system path\n"
-        "    --port.serial <serial>         search filter: partial or complete serial port device serial number\n"
-        "    --port.mfn <name>              search filter: partial or complete serial port manufacturer name\n"
-        "    -v, --verbose                  enable detailed printing to stdout\n"
-        "    --no-verbose                   disable detailed printing to stdout\n"
-        "    --no-stdout                    don't print to stdout\n"
-        "    --no-volume-control            disable setting the audio device volume\n"
-        "    --probe-volume-control         tests volume control from 0 to 100 and lists all valid volume levels\n"
-        "    --test-volume-control          verifies whether the audio devices matching the serarch criteria\n"
-        "                                   match the specification given in the volume control\n"
-        "                                   if the volume control do not match, the exit code is 1\n"
-        "    -h, --help                     print help\n"
-        "    -v, --version                  prints the version of this program\n"
-        "    -p, --list-properties          print detailed properties for each device and serial port\n"
-        "    -i, --included-devices <type>  type of devices to include in searches and in stdout or JSON:\n"
-        "                                       audio - include audio devices\n"
-        "                                       ports - include serial ports\n"
-        "                                       all - include audio devices and serial ports\n"
-        "    -s, --search-mode <mode>       how to conduct the search: \n"
-        "                                       independent - look for audio devices and serial ports independently\n"
-        "                                       audio-siblings - look for audio devices and find their sibling serial ports\n"
-        "                                       port-siblings - look for serial ports and find their sibling audio devices\n"
-        "    --output-file <file>           write results as JSON to a file\n"
-        "    --json                         display JSON to stdout\n"
-        "    --ignore-config                ignore the configuration file, if a configurtion file is available or specified\n"
-        "    -c, --config-file <file>       use a configuration file to configure the program\n"
-        "                                   settings specified as command line args override settings present in the config file\n"
-        "                                   if not specified default config file name used is \"config.json\"\n"
-        "    --disable-colors               do not print colors in stdout\n"
-        "    --disable-file-write           disables writing a JSON file with the results of the search, which is the defaul\n"
-        "    --test-data <file>             not yet implemented: fake the data as if it came from the system, for testing purposes\n"
-        "    -t, --test-devices             not yet implemented: test each device hardware that we find\n"
-        "                                   if hardware test fails, removes it from the search results list\n"
+        "    --audio.name <name>               search filter: partial or complete name of the audio device\n"
+        "    --audio.stream-name <name>        search filter: partial or complete name of the audio stream name\n"
+        "    --audio.desc <description>        search filter: partial or complete description of the audio device\n"
+        "    --audio.type <type>               search filter: types of audio devices to find: playback, capture, playback|capture, playback&capture:\n"
+        "                                          playback - playback only\n"
+        "                                          capture - capture only\n"
+        "                                          \"playback|capture\" - playback or capture\n"
+        "                                          \"playback&capture\" - playback and capture\n"
+        "                                          all\n"
+        "    --audio.bus <number>              search filter: audio device bus number\n"
+        "    --audio.device <number>           search filter: audio device number\n"
+        "    --audio.path <path>               search filter: audio device hardware system path\n"
+        "    --audio.topology <number>         search filter: the depth of the audio device topology, in the device tree\n"
+        "    --audio.control <name>            used to set a value on the audio device; this property is used to select the audio control to set\n"
+        "    --audio.channels <channels>       used to set a value on the audio device; this property is used to select the audio channels to set\n"
+        "    --audio.volume <volume>           used to set a value on the audio device; this property is used to set the audio volume\n"
+        "                                      on all devices that match --audio.control, --audio.channels and --audio.channel-type.\n"
+        "    --audio.channel-type <type>       used to set a value on the audio device; this property is used to select the channel type\n"
+        "                                          playback - playback only\n"
+        "                                          capture - capture only\n"
+        "                                          all\n"
+        "    --audio.disable-volume-control    disable setting the audio device volume\n"
+        "    --port.name <name>                search filter: partial or complete name of the serial port\n"
+        "    --port.desc <description>         search filter: partial or complete description of the serial port\n"
+        "    --port.bus <number>               search filter: serial port bus number\n"
+        "    --port.device <number>            search filter: serial port device number\n"
+        "    --port.topology <number>          search filter: the depth of the serial port device topology, in the device tree\n"
+        "    --port.path <path>                search filter: serial port hardware system path\n"
+        "    --port.serial <serial>            search filter: partial or complete serial port device serial number\n"
+        "    --port.mfn <name>                 search filter: partial or complete serial port manufacturer name\n"
+        "    -v, --verbose                     enable detailed printing to stdout\n"
+        "    --no-verbose                      disable detailed printing to stdout\n"
+        "    --no-stdout                       don't print to stdout\n"
+        "    --no-volume-control               disable setting the audio device volume\n"
+        "    --probe-volume-control            tests volume control from 0 to 100 and lists all valid volume levels\n"
+        "    --test-volume-control             verifies whether the audio devices matching the serarch criteria\n"
+        "                                      match the specification given in the volume control\n"
+        "                                      if the volume control do not match, the exit code is 1\n"
+        "    -h, --help                        print help\n"
+        "    -v, --version                     prints the version of this program\n"
+        "    -p, --list-properties             print detailed properties for each device and serial port\n"
+        "    -i, --included-devices <type>     type of devices to include in searches and in stdout or JSON:\n"
+        "                                          audio - include audio devices\n"
+        "                                          ports - include serial ports\n"
+        "                                          all - include audio devices and serial ports\n"
+        "    -s, --search-mode <mode>          how to conduct the search: \n"
+        "                                          independent - look for audio devices and serial ports independently\n"
+        "                                          audio-siblings - look for audio devices and find their sibling serial ports\n"
+        "                                          port-siblings - look for serial ports and find their sibling audio devices\n"
+        "    --output-file <file>              write results as JSON to a file\n"
+        "    --json                            display JSON to stdout\n"
+        "    --ignore-config                   ignore the configuration file, if a configurtion file is available or specified\n"
+        "    -c, --config-file <file>          use a configuration file to configure the program\n"
+        "                                      settings specified as command line args override settings present in the config file\n"
+        "                                      if not specified default config file name used is \"config.json\"\n"
+        "    --disable-colors                  do not print colors in stdout\n"
+        "    --disable-file-write              disables writing a JSON file with the results of the search, which is the defaul\n"
+        "    --test-data <file>                not yet implemented: fake the data as if it came from the system, for testing purposes\n"
+        "    -t, --test-devices                not yet implemented: test each device hardware that we find\n"
+        "                                      if hardware test fails, removes it from the search results list\n"
+        "    --direwolf-config <file>          generate a direwolf configuration file\n"
+        "    --direwolf.agwport <port>         generate a direwolf configuration file\n"
+        "    --direwolf.kissport <port>        generate a direwolf configuration file\n"
+        "    --direwolf.callsign <port>        generate a direwolf configuration file\n"
         "\n"
         "Return:\n"
         "    0 - success, audio devices or serial ports are found matching the search criteria\n"
@@ -1727,7 +1740,8 @@ void print(const args& args, const search_result& result, bool volume_control_re
 
     if (!args.no_stdout && !args.use_json && args.verbose && !args.ignore_config)
     {
-        print(!args.disable_colors, fmt::emphasis::bold, "Using config file: \"{}\"\n", config_file);
+        print(!args.disable_colors, fmt::emphasis::bold, "Using config file: ");
+        print(!args.disable_colors, fg(fmt::color::gray), "{}\n", config_file);
     }
 
     std::string json_output = to_json(args, result, audio_set_result, volume_control_return_value);
@@ -1746,7 +1760,7 @@ void print(const args& args, const search_result& result, bool volume_control_re
     print_to_file(args, json_output);
 }
 
-int process_devices(args& args)
+int process_devices(const args& args)
 {
     search_result result = search(args);
 
@@ -1768,7 +1782,63 @@ int process_devices(args& args)
         }
     }
 
+    generate_direwolf_output_file(args, result);
+
     return return_value;
+}
+
+void generate_direwolf_output_file(const args& args, const search_result& result)
+{
+    std::string file_name = std::filesystem::absolute(args.direwolf_output_file).string();
+
+    if (file_name.empty())
+    {
+        return;
+    }
+
+    if (result.devices.size() != 1)
+    {
+        return;
+    }
+
+    if (std::filesystem::exists(file_name))
+    {
+        std::filesystem::remove(file_name);
+    }
+
+    const auto& audio_device = result.devices[0];
+
+    std::string lines;
+    lines += "# AUTO-GENERATED BY find_devices, DO NOT CHANGE\n";
+    lines += fmt::format("ADEVICE {}\n", audio_device.first.audio_device.plughw_id);
+    if (result.ports.size() == 1)
+    {
+        lines += fmt::format("PTT {} RTS\n", result.ports[0].first.name);
+    }
+    lines += "ACHANNELS 1\n";
+    lines += "CHANNEL 0\n";
+    lines += "DTMF\n";
+    lines += "MODEM 1200\n";
+    if (!args.direwolf_callsign.empty())
+    {
+        lines += fmt::format("MYCALL {}\n", args.direwolf_callsign);
+    }
+    if (args.direwolf_agwport != -1)
+    {
+        lines += fmt::format("AGWPORT {}\n", args.direwolf_agwport);
+    }
+    if (args.direwolf_kissport != -1)
+    {
+        lines += fmt::format("KISSPORT {}", args.direwolf_kissport);
+    }
+
+    write_line_to_file(file_name, lines);
+
+    if (args.verbose && !args.use_json && !args.no_stdout)
+    {
+        print(!args.disable_colors, fmt::emphasis::bold, "Created Direwolf configuration file: ");
+        print(!args.disable_colors, fg(fmt::color::red), "{}\n\n", file_name);
+    }
 }
 
 void print_version()
