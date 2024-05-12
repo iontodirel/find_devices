@@ -1269,7 +1269,7 @@ void update_devices_volume(search_result& result);
 void print(const args& args, const search_result& result, int volume_control_return_value, const std::vector<audio_device_unique_volume_set>& audio_set_result);
 int process_devices(const args& args);
 void print_version();
-void generate_direwolf_output_file(const args& args, const search_result& result);
+bool generate_direwolf_output_file(const args& args, const search_result& result);
 
 int main(int argc, char* argv[])
 {
@@ -1774,6 +1774,8 @@ int process_devices(const args& args)
 
     print(args, result, volume_test_return_value, adjust_volume_results);
 
+    bool generate_direwolf_result = generate_direwolf_output_file(args, result);
+
     if (volume_test_return_value)
     {
         if (result.devices.size() == 0 && result.ports.size() == 0)
@@ -1782,23 +1784,26 @@ int process_devices(const args& args)
         }
     }
 
-    generate_direwolf_output_file(args, result);
+    if (!generate_direwolf_result)
+    {
+        return_value = 1;
+    }
 
     return return_value;
 }
 
-void generate_direwolf_output_file(const args& args, const search_result& result)
+bool generate_direwolf_output_file(const args& args, const search_result& result)
 {
     std::string file_name = std::filesystem::absolute(args.direwolf_output_file).string();
 
     if (file_name.empty())
     {
-        return;
+        return true;
     }
 
     if (result.devices.size() != 1)
     {
-        return;
+        return false;
     }
 
     if (std::filesystem::exists(file_name))
@@ -1839,6 +1844,8 @@ void generate_direwolf_output_file(const args& args, const search_result& result
         print(!args.disable_colors, fmt::emphasis::bold, "Created Direwolf configuration file: ");
         print(!args.disable_colors, fg(fmt::color::red), "{}\n\n", file_name);
     }
+
+    return true;
 }
 
 void print_version()
