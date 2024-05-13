@@ -1382,9 +1382,9 @@ void print_usage()
         "    -t, --test-devices                not yet implemented: test each device hardware that we find\n"
         "                                      if hardware test fails, removes it from the search results list\n"
         "    --direwolf-config <file>          generate a direwolf configuration file\n"
-        "    --direwolf.agwport <port>         generate a direwolf configuration file\n"
-        "    --direwolf.kissport <port>        generate a direwolf configuration file\n"
-        "    --direwolf.callsign <port>        generate a direwolf configuration file\n"
+        "    --direwolf.agwport <port>         the AGW port in the direwolf configuration\n"
+        "    --direwolf.kissport <port>        the KISS port in the direwolf configuration\n"
+        "    --direwolf.callsign <port>        the callsign in the direwolf configuration, NOCALL if not specified\n"
         "\n"
         "Return:\n"
         "    0 - success, audio devices or serial ports are found matching the search criteria\n"
@@ -1794,12 +1794,12 @@ int process_devices(const args& args)
 
 bool generate_direwolf_output_file(const args& args, const search_result& result)
 {
-    std::string file_name = std::filesystem::absolute(args.direwolf_output_file).string();
-
-    if (file_name.empty())
+    if (args.direwolf_output_file.empty())
     {
         return true;
     }
+
+    std::string file_name = std::filesystem::absolute(args.direwolf_output_file).string();
 
     if (result.devices.size() != 1)
     {
@@ -1827,6 +1827,10 @@ bool generate_direwolf_output_file(const args& args, const search_result& result
     if (!args.direwolf_callsign.empty())
     {
         lines += fmt::format("MYCALL {}\n", args.direwolf_callsign);
+    }
+    else
+    {
+        lines += fmt::format("MYCALL N0CALL\n");
     }
     if (args.direwolf_agwport != -1)
     {
