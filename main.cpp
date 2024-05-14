@@ -1637,6 +1637,11 @@ bool test_volume_control(const args& args, const search_result& result)
         audio_device_channel channel;
         try_get_audio_device_channel(audio_set.volume.audio_device, audio_set.control.name, audio_set.channel.id, audio_set.channel.type, channel);
 
+        if (channel.volume_percent == audio_set.volume_set.volume)
+        {
+            continue;
+        }
+
         if (audio_set.volume_set.volume_max_error == 0 && channel.volume_percent != audio_set.volume_set.volume)
         {
             return false;
@@ -1740,7 +1745,7 @@ void print(const args& args, const search_result& result, bool volume_control_re
 
     if (!args.no_stdout && !args.use_json && args.verbose && !args.ignore_config)
     {
-        print(!args.disable_colors, fmt::emphasis::bold, "Using config file: ");
+        print(!args.disable_colors, fmt::emphasis::bold, "Using configuration file: ");
         print(!args.disable_colors, fg(fmt::color::gray), "{}\n", config_file);
     }
 
