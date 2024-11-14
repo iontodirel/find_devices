@@ -163,10 +163,14 @@ struct audio_device_volume_info
 };
 
 bool try_get_audio_device_volume(const audio_device_info& device, audio_device_volume_info& volume);
+bool try_set_audio_device_volume(const audio_device_info& device, const audio_device_volume_control& control, const audio_device_channel& channel);
 bool try_set_audio_device_volume(const audio_device_info& device, int volume);
 bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel& channel);
-bool try_set_audio_device_volume(const audio_device_info& device, const audio_device_volume_control& control, const audio_device_channel& channel);
 bool try_set_audio_device_volume(const audio_device_info& device, const std::string& control_name, const audio_device_channel_id& channel, const audio_device_type& channel_type, int value);
+bool try_set_audio_device_volume_percent(const audio_device_info& device, const audio_device_volume_control& control, const audio_device_channel& channel);
+bool try_set_audio_device_volume_percent(const audio_device_info& device, int volume);
+bool try_set_audio_device_volume_percent(const audio_device_info& device, const std::string& control_name, const audio_device_channel& channel);
+bool try_set_audio_device_volume_percent(const audio_device_info& device, const std::string& control_name, const audio_device_channel_id& channel, const audio_device_type& channel_type, int value);
 
 std::string to_json(const audio_device_volume_info& d, bool wrapping_object = true, int tabs = 0);
 std::string to_json(const audio_device_volume_info& d, std::function<std::string(const audio_device_volume_info& d)> render_device, std::function<std::string(const audio_device_volume_info& d, const audio_device_volume_control& c)> render_control, std::function<std::string(const audio_device_volume_info& d, const audio_device_volume_control& c, const audio_device_channel& ch)> render_channel, bool wrapping_object, int tabs);
@@ -211,6 +215,8 @@ struct device_description
     std::string product;
     std::string manufacturer;
     int topology_depth = -1;
+    int major_number = -1;
+    int minor_number = -1;
 };
 
 bool try_get_device_description(const audio_device_info& d, device_description& device);

@@ -32,11 +32,21 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-project (find_devices VERSION 1.0 LANGUAGES CXX)
+project (find_devices VERSION 1.0 LANGUAGES CXX C)
 
 if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
   cmake_policy(SET CMP0135 NEW)
 endif()
+
+find_package(OpenSSL REQUIRED)
+
+if(OPENSSL_VERSION VERSION_LESS "1.1")
+    add_definitions(-DOPENSSL_API_1_0)
+else()
+    add_definitions(-DOPENSSL_API_1_1)
+endif()
+
+include_directories(${OPENSSL_INCLUDE_DIR})
 
 include(FetchContent)
 
@@ -60,6 +70,17 @@ if(NOT cxxopts_POPULATED)
   FetchContent_Populate(cxxopts)
   add_subdirectory(${cxxopts_SOURCE_DIR} ${cxxopts_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
+
+set(CIVETWEB_ENABLE_SSL OFF CACHE BOOL "Disable CivetWeb SSL" FORCE)
+set(CIVETWEB_BUILD_TESTING OFF CACHE BOOL "Disable CivetWeb building tests" FORCE)
+set(CIVETWEB_ENABLE_WEBSOCKET ON CACHE BOOL "Enable CivetWeb websocket support" FORCE)
+
+FetchContent_Declare(
+  civetweb
+  GIT_REPOSITORY https://github.com/civetweb/civetweb.git
+  GIT_TAG v1.15
+)
+FetchContent_MakeAvailable(civetweb)
 
 add_executable (find_devices "find_devices.cpp" "find_devices.hpp" "main.cpp")
 
@@ -85,12 +106,22 @@ endif()
 
 message(STATUS "Git hash: ${GIT_HASH}")
 
+add_library(civetweb STATIC
+    ${civetweb_SOURCE_DIR}/src/civetweb.c
+    ${civetweb_SOURCE_DIR}/src/CivetServer.cpp
+)
+
+target_link_libraries(civetweb PRIVATE ${OPENSSL_LIBRARIES})
+target_include_directories(civetweb PUBLIC ${civetweb_SOURCE_DIR}/include ${civetweb_SOURCE_DIR})
+target_compile_definitions(civetweb PRIVATE USE_WEBSOCKET)
+
+target_include_directories(find_devices PRIVATE ${civetweb_SOURCE_DIR}/include ${civetweb_SOURCE_DIR})
 target_compile_definitions(find_devices PRIVATE GIT_HASH=${GIT_HASH} FIND_DEVICES_VERSION=${FIND_DEVICES_VERSION})
 if (${ENABLE_WARNINGS_AS_ERRORS})
   target_compile_options(find_devices PRIVATE -v -Wall -Wextra -Wpedantic -Werror)
   message("ENABLE_WARNINGS_AS_ERRORS is ON")
 endif()
-target_link_libraries(find_devices PRIVATE asound udev nlohmann_json::nlohmann_json fmt::fmt cxxopts)
+target_link_libraries(find_devices PRIVATE asound udev nlohmann_json::nlohmann_json fmt::fmt cxxopts civetweb)
 
 configure_file("${PROJECT_SOURCE_DIR}/config.json" "${PROJECT_BINARY_DIR}/config.json")
 configure_file("${PROJECT_SOURCE_DIR}/config_schema.json" "${PROJECT_BINARY_DIR}/config_schema.json")

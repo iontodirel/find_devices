@@ -42,11 +42,16 @@
 #include <map>
 #include <cmath>
 #include <algorithm>
+#include <thread>
+#include <csignal>
+#include <atomic>
 
 #include <nlohmann/json.hpp>
 #include <fmt/format.h>
 #include <fmt/color.h>
 #include <cxxopts.hpp>
+#include <civetweb.h>
+#include <CivetServer.h>
 
 // **************************************************************** //
 //                                                                  //
@@ -158,6 +163,9 @@ struct audio_device_filter
     int device = -1;
     int topology = -1;
     std::string path;
+    std::string hw_path;
+    std::string order_by;
+    std::string order_direction;
 };
 
 struct audio_device_volume_set
@@ -200,6 +208,9 @@ struct serial_port_filter
     int device = -1;
     int topology = -1;
     std::string path;
+    std::string hw_path;
+    std::string order_by;
+    std::string order_direction;
 };
 
 enum class search_mode
@@ -246,6 +257,9 @@ struct args
     std::string direwolf_callsign;
     int direwolf_agwport = -1;
     int direwolf_kissport = -1;
+    int server_port = 8088;
+    bool run_server = false;
+    std::atomic<bool> keep_running {true};
 };
 
 struct search_result
@@ -364,8 +378,8 @@ std::string to_json(const args& args, const search_result& result, const std::ve
 std::string to_json(const audio_device_volume_info& d, const std::vector<audio_device_unique_volume_set>& audio_set_result, bool wrapping_object, int tabs)
 {
     return to_json(d,
-        std::function<std::string(const audio_device_volume_info&)>{},
-        std::function<std::string(const audio_device_volume_info&, const audio_device_volume_control&)>{},
+        [](const audio_device_volume_info&) { return ""; },
+        [](const audio_device_volume_info&, const audio_device_volume_control&) { return ""; },
         [&audio_set_result](const audio_device_volume_info& d, const audio_device_volume_control& control, const audio_device_channel& channel)
         {
             std::string result;
@@ -466,22 +480,42 @@ std::string to_json(const args& args, const search_result& result, const std::ve
 // **************************************************************** //
 
 std::vector<audio_device_info> get_audio_devices(const audio_device_filter& m);
+std::vector<audio_device_volume_info> get_audio_devices(const std::string& id);
 bool match_audio_device(const audio_device_info& d, const audio_device_filter& m);
 bool match_device(const device_description& p, const audio_device_filter& m);
 bool try_get_audio_device_channel(const audio_device_info& audio_device, const std::string& control_name, audio_device_channel_id channel_id, audio_device_type channel_type, audio_device_channel& channel);
+bool try_get_audio_device_channel(const audio_device_info& audio_device, const std::string& control_name, const std::string& channel_name, std::vector<audio_device_channel>& result);
+bool try_set_audio_device_volume_percent(const audio_device_info& audio_device, const std::string& control_name, const std::string& channel_name, audio_device_type type, int value);
 
 std::vector<audio_device_info> get_audio_devices(const audio_device_filter& m)
 {
-    std::vector<audio_device_info> matchedDevices;
+    std::vector<audio_device_info> matched_devices;
     std::vector<audio_device_info> devices = get_audio_devices();
     for (const auto& d : devices)
     {
         if (match_audio_device(d, m))
         {
-            matchedDevices.emplace_back(std::move(d));
+            matched_devices.emplace_back(std::move(d));
         }
     }
-    return matchedDevices;
+    return matched_devices;
+}
+
+std::vector<audio_device_volume_info> get_audio_devices(const std::string& id)
+{
+    std::vector<audio_device_volume_info> matched_devices;
+    std::vector<audio_device_info> devices = get_audio_devices();
+
+    for (const auto& d : devices)
+    {
+        if (d.hw_id == id)
+        {
+            audio_device_volume_info volume_info;
+            try_get_audio_device_volume(d, volume_info);
+            matched_devices.push_back(volume_info);
+        }
+    }
+    return matched_devices;
 }
 
 bool match_audio_device(const audio_device_info& d, const audio_device_filter& m)
@@ -533,7 +567,9 @@ bool match_device(const device_description& p, const audio_device_filter& m)
         return false;
     if (m.topology != -1 && m.topology != p.topology_depth)
         return false;
-    if (!m.path.empty() && m.path != p.hw_path)
+    if (!m.path.empty() && (m.path.find(p.path) == std::string::npos || m.path.substr(0, p.path.size()) != p.path))
+        return false;
+    if (!m.hw_path.empty() && (m.hw_path.find(p.hw_path) == std::string::npos || m.hw_path.substr(0, p.hw_path.size()) != p.hw_path))
         return false;
 
     return true;
@@ -593,6 +629,58 @@ bool try_get_audio_device_channel(const audio_device_info& audio_device, const s
     return false;
 }
 
+bool try_get_audio_device_channel(const audio_device_info& audio_device, const std::string& control_name, const std::string& channel_name, std::vector<audio_device_channel>& result)
+{
+    audio_device_volume_info volume;
+    try_get_audio_device_volume(audio_device, volume);
+
+    for (auto& control : volume.controls)
+    {
+        if (control.name != control_name)
+        {
+            continue;
+        }
+
+        for (auto& channel : control.channels)
+        {
+            if (to_string(channel.id) != channel_name)
+            {
+                continue;
+            }
+
+            result.push_back(channel);
+        }
+    }
+
+    return result.size() > 0;
+}
+
+bool try_set_audio_device_volume_percent(const audio_device_info& audio_device, const std::string& control_name, const std::string& channel_name, audio_device_type type, int value)
+{
+    std::vector<audio_device_channel> channels;
+
+    if (!try_get_audio_device_channel(audio_device, control_name, channel_name, channels))
+    {
+        return false;
+    }
+
+    for (auto& control_channel : channels)
+    {        
+        if (control_channel.type != type && !enum_device_type_has_flag(control_channel.type, type))
+        {
+            continue;
+        }
+
+        control_channel.volume_percent = value;
+        if (!try_set_audio_device_volume_percent(audio_device, control_name, control_channel))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // **************************************************************** //
 //                                                                  //
 // SERIAL PORTS                                                     //
@@ -646,7 +734,9 @@ bool match_device(const device_description& p, const serial_port_filter& m)
         return false;
     if (m.topology != -1 && m.topology != p.topology_depth)
         return false;
-    if (!m.path.empty() && m.path != p.hw_path)
+    if (!m.path.empty() && (m.path.find(p.path) == std::string::npos || m.path.substr(0, p.path.size()) != p.path))
+        return false;
+    if (!m.hw_path.empty() && (m.hw_path.find(p.hw_path) == std::string::npos || m.hw_path.substr(0, p.hw_path.size()) != p.hw_path))
         return false;
 
     return true;
@@ -664,6 +754,7 @@ std::vector<audio_device_info> get_sibling_audio_devices(const std::vector<std::
 std::vector<serial_port> get_sibling_serial_ports(const std::vector<std::pair<audio_device_info, device_description>>& devices);
 std::vector<std::pair<audio_device_volume_info, device_description>> map_device_to_volume(const std::vector<std::pair<audio_device_info, device_description>>& devices);
 search_result search(const args& args);
+void sort(const args& args, search_result& result);
 bool has_audio_device_description_filter(const args& args);
 bool has_serial_port_description_filter(const args& args);
 std::vector<audio_device_unique_volume_set> generate_unique_volume_set(const args& args, const search_result& result);
@@ -783,6 +874,58 @@ search_result search(const args& args)
         result.ports = filter_serial_ports(args, get_sibling_serial_ports(devices));
     }
     return result;
+}
+
+void sort(const args& args, search_result& result)
+{
+    const auto& audio_order_by = args.audio_filter.order_by;
+    const auto& audio_order_direction = args.audio_filter.order_direction;
+    bool audio_ascending = (audio_order_direction == "asc" || audio_order_direction == "ascending");
+
+    const auto& port_order_by = args.port_filter.order_by;
+    const auto& port_order_direction = args.port_filter.order_direction;
+    bool port_ascending = (port_order_direction == "asc" || port_order_direction == "ascending");
+
+    auto compare_devices = [&](const auto& a, const auto& b)
+    {
+        const auto& [volume_info_a, description_a] = a;
+        const auto& [volume_info_b, description_b] = b;
+
+        if (audio_order_by == "major")
+        {
+            return audio_ascending ? description_a.major_number < description_b.major_number :
+                description_a.major_number > description_b.major_number;
+        } 
+        else if (audio_order_by == "minor")
+        {
+            return audio_ascending ? description_a.minor_number < description_b.minor_number :
+                description_a.minor_number > description_b.minor_number;
+        }
+
+        return false;
+    };
+
+    auto compare_ports = [&](const auto& a, const auto& b)
+    {
+        const auto& [port_a, description_a] = a;
+        const auto& [port_b, description_b] = b;
+
+        if (port_order_by == "major")
+        {
+            return port_ascending ? description_a.major_number < description_b.major_number :
+                description_a.major_number > description_b.major_number;
+        }
+        else if (port_order_by == "minor")
+        {
+            return port_ascending ? description_a.minor_number < description_b.minor_number :
+                description_a.minor_number > description_b.minor_number;
+        }
+
+        return false;
+    };
+
+    std::sort(result.devices.begin(), result.devices.end(), compare_devices);
+    std::sort(result.ports.begin(), result.ports.end(), compare_ports);
 }
 
 bool has_audio_device_description_filter(const args& args)
@@ -935,6 +1078,9 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "audio.device", {"audio.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.device = result["audio.device"].as<int>(); }}},
         { "audio.topology", {"audio.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.topology = result["audio.topology"].as<int>(); }}},
         { "audio.path", {"audio.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.path = result["audio.path"].as<std::string>(); }}},     
+        { "audio.hw-path", {"audio.hw-path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.hw_path = result["audio.hw-path"].as<std::string>(); }}},
+        { "audio.order-by", {"audio.order-by", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.order_by = result["audio.order-by"].as<std::string>(); }}},
+        { "audio.order-direction", {"audio.order-direction", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.audio_filter.order_direction = result["audio.order-direction"].as<std::string>(); }}},
         { "audio.control", {"audio.control", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.volume_set[0].control_name = result["audio.control"].as<std::string>(); }}},
         { "audio.channels", {"audio.channels", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { try_parse_channels(result["audio.channels"].as<std::string>(), args.volume_set[0].audio_channels); }}},
         { "audio.volume", {"audio.volume", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.volume_set[0].volume = result["audio.volume"].as<int>(); }}},
@@ -945,16 +1091,21 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
         { "probe-volume-control", {"probe-volume-control", false, nullptr, [&](const cxxopts::ParseResult& result) { args.probe_volume_control = result["probe-volume-control"].as<bool>(); }}},
         { "port.name", {"port.name", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.name_filter = result["port.name"].as<std::string>(); }}},
         { "port.desc", {"port.desc", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.description_filter = result["port.desc"].as<std::string>(); }}},
-        { "port.bus", {"port.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.bus"].as<std::string>(), args.port_filter.bus); }}},
-        { "port.device", {"port.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.device"].as<std::string>(), args.port_filter.device); }}},
-        { "port.topology", {"port.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["port.topology"].as<std::string>(), args.port_filter.topology); }}},
+        { "port.bus", {"port.bus", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.port_filter.bus = result["port.bus"].as<int>(); }}},
+        { "port.device", {"port.device", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.port_filter.device = result["port.device"].as<int>(); }}},
+        { "port.topology", {"port.topology", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.port_filter.topology = result["port.topology"].as<int>(); }}},
         { "port.path", {"port.path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.path = result["port.path"].as<std::string>(); }}},
+        { "port.hw-path", {"port.hw-path", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.hw_path = result["port.hw-path"].as<std::string>(); }}},
+        { "port.order-by", {"port.order-by", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.order_by = result["port.order-by"].as<std::string>(); }}},
+        { "port.order-direction", {"port.order-direction", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.order_direction = result["port.order-direction"].as<std::string>(); }}},
         { "port.serial", {"port.serial", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.device_serial_number = result["port.serial"].as<std::string>(); }}},
         { "port.mfn", {"port.mfn", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.port_filter.manufacturer_filter = result["port.mfn"].as<std::string>(); }}},
         { "direwolf-config", {"direwolf-config", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.direwolf_output_file = result["direwolf-config"].as<std::string>(); }}},
         { "direwolf.agwport", {"direwolf.agwport", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["direwolf.agwport"].as<std::string>(), args.direwolf_agwport); }}},
         { "direwolf.kissport", {"direwolf.kissport", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { try_parse_number(result["direwolf.kissport"].as<std::string>(), args.direwolf_kissport); }}},
-        { "direwolf.callsign", {"direwolf.callsign", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.direwolf_callsign = result["direwolf.callsign"].as<std::string>(); }}}
+        { "direwolf.callsign", {"direwolf.callsign", true, cxxopts::value<std::string>(), [&](const cxxopts::ParseResult& result) { args.direwolf_callsign = result["direwolf.callsign"].as<std::string>(); }}},
+        { "run-server", {"run-server", false, nullptr, [&](const cxxopts::ParseResult& result) { args.run_server = true; }}},
+        { "server-port", {"server-port", true, cxxopts::value<int>(), [&](const cxxopts::ParseResult& result) { args.server_port = result["server-port"].as<int>(); }}}
     };
 
     if (has_volume_control_options(argc, argv))
@@ -1030,8 +1181,10 @@ bool try_parse_command_line(int argc, char* argv[], args& args)
 // **************************************************************** //
 
 void read_settings(args& args);
+void read_settings(args& args, const nlohmann::json& j);
 void parse_top_level_settings(args& args, const nlohmann::json& j);
 void parse_search_criteria(args& args, const nlohmann::json& j);
+void parse_sort(args& args, const nlohmann::json& j);
 void parse_volume_control(args& args, const nlohmann::json& j);
 
 void read_settings(args& args)
@@ -1085,9 +1238,15 @@ void read_settings(args& args)
         return;
     }
 
+    read_settings(args, j);
+}
+
+void read_settings(args& args, const nlohmann::json& j)
+{
     parse_top_level_settings(args, j);
-    parse_search_criteria(args, j);    
-    parse_volume_control(args, j);    
+    parse_search_criteria(args, j);
+    parse_sort(args, j);
+    parse_volume_control(args, j);
 }
 
 void parse_top_level_settings(args& args, const nlohmann::json& j)
@@ -1099,11 +1258,11 @@ void parse_top_level_settings(args& args, const nlohmann::json& j)
     if (!args.command_line_args.contains("list-properties"))
         try_parse_bool(j.value("list_properties", ""), args.list_properties);
     if (j.contains("output_file") && !args.command_line_args.contains("output-file"))
-        {
-            args.disable_write_file = false;
-            args.output_file = j["output_file"];
-            args.output_file = get_full_path(args.output_file);
-        }
+    {
+        args.disable_write_file = false;
+        args.output_file = j["output_file"];
+        args.output_file = get_full_path(args.output_file);
+    }
     if (!args.command_line_args.contains("included-devices"))
         try_parse_included_devices(j.value("included_devices", ""), args.included_devices);
 }
@@ -1132,6 +1291,8 @@ void parse_search_criteria(args& args, const nlohmann::json& j)
                 try_parse_number(audio_match.value("topology_depth", ""), args.audio_filter.topology);
             if (!args.command_line_args.contains("audio.path"))
                 args.audio_filter.path = audio_match.value("path", "");
+            if (!args.command_line_args.contains("audio.hw-path"))
+                args.audio_filter.hw_path = audio_match.value("hw_path", "");
         }
         if (search_criteria.contains("port"))
         {
@@ -1148,8 +1309,34 @@ void parse_search_criteria(args& args, const nlohmann::json& j)
                 try_parse_number(port_match.value("topology_depth", ""), args.port_filter.topology);
             if (!args.command_line_args.contains("port.path"))
                 args.port_filter.path = port_match.value("path", "");
+            if (!args.command_line_args.contains("port.hw-path"))
+                args.port_filter.hw_path = port_match.value("hw_path", "");
             if (!args.command_line_args.contains("port.serial"))
                 args.port_filter.device_serial_number = port_match.value("serial", "");
+        }
+    }
+}
+
+void parse_sort(args& args, const nlohmann::json& j)
+{
+    if (j.contains("sort"))
+    {
+        nlohmann::json sort = j["sort"];
+        if (sort.contains("audio"))
+        {
+            nlohmann::json audio_sort = sort["audio"];
+            if (!args.command_line_args.contains("audio.order-by"))
+                args.audio_filter.order_by = audio_sort.value("order_by", "");
+            if (!args.command_line_args.contains("audio.order-direction"))
+                args.audio_filter.order_direction = audio_sort.value("order_direction", "");
+        }
+        if (sort.contains("port"))
+        {
+            nlohmann::json port_sort = sort["port"];
+            if (!args.command_line_args.contains("port.order-by"))
+                args.port_filter.order_by = port_sort.value("order_by", "");
+            if (!args.command_line_args.contains("port.order-direction"))
+                args.port_filter.order_direction = port_sort.value("order_direction", "");
         }
     }
 }
@@ -1164,91 +1351,473 @@ void parse_volume_control(args& args, const nlohmann::json& control, const std::
     try_parse_number(control.value(property_name, ""), volume_set.volume);
     volume_set.audio_channel_type = type;
     if (control.contains(err_property_name))
-        {
+    {
         try_parse_number(control.value(err_property_name, ""), volume_set.volume_max_error);
-                }
+    }
     volume_set.control_name = control_name;
     args.volume_set.push_back(volume_set);
-            }
+}
 
 void parse_volume_control(args& args, const nlohmann::json& control, const std::string& control_name, const std::string& property_name, const std::string&  err_property_name, audio_device_type type)
-            {
+{
     audio_device_volume_set volume_set;
     parse_volume_control(args, control, control_name, property_name, err_property_name, type, volume_set);
-                }
+}
 
 void parse_volume_control(args& args, const nlohmann::json& control, const std::string& property_name, const std::string& err_property_name, audio_device_type type, audio_device_volume_set &volume_set)
-            {
-    std::string control_name;
-                    if (control.contains("name"))
-                    {
-        control_name = control["name"];
-                    }
-    parse_volume_control(args, control, control_name, property_name, err_property_name, type, volume_set);
-                    }
-
-void parse_volume_control(args& args, const nlohmann::json& control, const std::string& property_name, const std::string& err_property_name, audio_device_type type)
-                    {
-    audio_device_volume_set volume_set;
-    parse_volume_control(args, control, property_name, err_property_name, type, volume_set);
-                    }   
-
-void parse_volume_control(args& args, const nlohmann::json& control, const nlohmann::json& channel, const std::string& property_name, const std::string& err_property_name, audio_device_type type)
-                    {
+{
     std::string control_name;
     if (control.contains("name"))
-                        {
+    {
         control_name = control["name"];
-                        }
+    }
+    parse_volume_control(args, control, control_name, property_name, err_property_name, type, volume_set);
+}
+
+void parse_volume_control(args& args, const nlohmann::json& control, const std::string& property_name, const std::string& err_property_name, audio_device_type type)
+{
+    audio_device_volume_set volume_set;
+    parse_volume_control(args, control, property_name, err_property_name, type, volume_set);
+}
+
+void parse_volume_control(args& args, const nlohmann::json& control, const nlohmann::json& channel, const std::string& property_name, const std::string& err_property_name, audio_device_type type)
+{
+    std::string control_name;
+    if (control.contains("name"))
+    {
+        control_name = control["name"];
+    }
     parse_volume_control(args, channel, control_name, property_name, err_property_name, type);
     std::string channel_name;
-                        if (channel.contains("name"))
-                        {
+    if (channel.contains("name"))
+    {
         channel_name = channel["name"];
         audio_device_channel_id channel_id;
         if (try_parse_audio_device_channel_display_name(channel_name, channel_id))
-                        {
+        {
             args.volume_set.back().audio_channels.push_back(channel_id);
-                        }
+        }
     }
-                        }
+}
 
 void parse_volume_control(args& args, const nlohmann::json& j)
-                        {
+{
     if (args.volume_set.size() > 0)
-                            {
+    {
         return;
-                            }                     
-    
+    }
+
     if (!j.contains("volume_control"))
-                            {
+    {
         return;
-                        }   
+    }
 
     nlohmann::json volume_control = j["volume_control"];
-      
+
     parse_volume_control(args, volume_control, "capture_value_percent", "capture_value_test_max_error", audio_device_type::capture);
     parse_volume_control(args, volume_control, "playback_value_percent", "playback_value_test_max_error", audio_device_type::playback);
 
     if (volume_control.contains("controls"))
-                        {
+    {
         nlohmann::json controls = volume_control["controls"];
         for (const nlohmann::json& control : controls)
-                            {
+        {
             parse_volume_control(args, control, "capture_value_percent", "capture_value_test_max_error", audio_device_type::capture);
             parse_volume_control(args, control, "playback_value_percent", "playback_value_test_max_error", audio_device_type::playback);
 
             if (control.contains("channels"))
             {
-            nlohmann::json channels = control["channels"];
-            for (const nlohmann::json& channel : channels)
-                            {
-                parse_volume_control(args, control, channel, "capture_value_percent", "capture_value_test_max_error", audio_device_type::capture);
-                parse_volume_control(args, control, channel, "playback_value_percent", "playback_value_test_max_error", audio_device_type::playback);
+                nlohmann::json channels = control["channels"];
+                for (const nlohmann::json& channel : channels)
+                {
+                    parse_volume_control(args, control, channel, "capture_value_percent", "capture_value_test_max_error", audio_device_type::capture);
+                    parse_volume_control(args, control, channel, "playback_value_percent", "playback_value_test_max_error", audio_device_type::playback);
+                }
             }
-        }        
+        }
     }
 }
+
+// **************************************************************** //
+//                                                                  //
+// HTTP AND WEB SOCKER SERVER                                       //
+//                                                                  //
+// **************************************************************** //
+
+std::vector<audio_device_unique_volume_set> adjust_volume(const args& args, search_result& result);
+bool test_volume_control(const args& args, const search_result& result);
+
+std::atomic<bool> interrupt_web_server {false};
+
+std::string new_search_to_json();
+std::string process_devices_to_json(const nlohmann::json& j);
+void signal_handler(int signal);
+std::string to_json(const args& args, const search_result& result);
+std::string print(const args& args, const search_result& result, bool volume_control_return_value, const std::vector<audio_device_unique_volume_set>& audio_set_result);
+bool render_text(mg_connection *conn, const std::string& text);
+bool render_result(mg_connection *conn, bool result, const std::string& message);
+int run_server(const args& args, const search_result& result);
+
+std::string new_search_to_json()
+{
+    args default_args;
+
+    default_args.ignore_config = true;
+    default_args.test_volume_control = false;
+
+    search_result result = search(default_args);
+
+    std::string json_output = to_json(default_args, result);
+
+    return json_output;
+}
+
+std::string process_devices_to_json(const nlohmann::json& j)
+{
+    args args;
+
+    args.no_stdout = true;
+    args.ignore_config = true;
+    args.disable_write_file = true;
+    args.run_server = false;
+    args.test_volume_control = true;
+    args.disable_volume_control = false;
+
+    read_settings(args, j);
+
+    search_result result = search(args);
+
+    auto adjust_volume_results = adjust_volume(args, result);    
+
+    bool volume_test_return_value = test_volume_control(args, result);
+
+    std::string json_output = print(args, result, volume_test_return_value, adjust_volume_results);
+
+    return json_output;
+}
+
+void signal_handler(int signal)
+{
+    if (signal == SIGINT || signal == SIGTERM)
+    {
+        interrupt_web_server = true;
+    }
+}
+
+std::string to_json(const args& args, const search_result& result)
+{
+    std::vector<audio_device_unique_volume_set> empty_audio_set_result;
+
+    std::string json_output = to_json(args, result, empty_audio_set_result, true);
+
+    return json_output;
+}
+
+bool render_text(mg_connection *conn, const std::string& text)
+{
+    mg_printf(conn,
+          "HTTP/1.1 200 OK\r\n"
+          "Content-Type: application/json\r\n"
+          "Content-Length: %zu\r\n"
+          "Access-Control-Allow-Origin: *\r\n"
+          "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+          "Access-Control-Allow-Headers: Content-Type\r\n"
+          "\r\n"
+          "%s",
+          text.size(), text.c_str());
+    return true;
+}
+
+bool render_result(mg_connection *conn, bool result, const std::string& message)
+{
+    std::string response = fmt::format("{{ \"success\": \"{}\", \"message\": \"{}\" }}", result, message);
+    return render_text(conn, response);
+}
+
+class DeviceHttpHandler : public CivetHandler
+{
+public:
+    DeviceHttpHandler(const args& args) : args(args) {}
+
+    bool handleGet(CivetServer *server, struct mg_connection *conn) override
+    {
+        print(!args.disable_colors, fg(fmt::color::gray), "HTTP server received GET request\n");
+
+        std::string request_uri = mg_get_request_info(conn)->request_uri;
+
+        std::vector<std::string> url_segments = split_url(request_uri);
+
+        if (url_segments.size() < 2 || url_segments.size() > 8)
+        {
+            return render_result(conn, false, "not supported");
+        }
+
+        std::string device_id = url_segments[1];
+
+        std::vector<audio_device_volume_info> devices = get_audio_devices(device_id);
+
+        if (devices.size() != 1)
+        {
+            return render_result(conn, false, fmt::format("no device ""{}"" found", device_id));
+        }
+
+        audio_device_volume_info device = devices[0];
+
+        if (url_segments.size() == 2)
+        {
+            std::string response = to_json(device);
+            return render_text(conn, response);
+        }
+        else if (url_segments.size() == 4)
+        {
+            std::string volume_set_type = url_segments[2];
+            std::string device_volume_str = url_segments[3];
+            int device_volume = -1;
+
+            if (!(volume_set_type == "volume" || volume_set_type == "playback_volume" || volume_set_type == "capture_volume"))
+            {
+                return render_result(conn, false, "type of volume set not supported, supported values are: volume, playback_volume, capture_volume");
+            }
+
+            if (!try_parse_number(device_volume_str, device_volume))
+            {
+                return render_result(conn, false, "cannot parse volume as number");
+            }
+
+            bool result = try_set_audio_device_volume_percent(device.audio_device, device_volume);
+
+            return render_result(conn, result, "");
+        }
+        else if (url_segments.size() == 8)
+        {
+            std::string control_str = url_segments[2];
+            std::string control_name = url_segments[3];
+            std::string channel_str = url_segments[4];
+            std::string channel_name = url_segments[5];            
+            std::string channel_type_str = url_segments[6];
+            audio_device_type channel_type;
+            std::string device_volume_str = url_segments[7];
+            int device_volume = -1;
+
+            if (channel_str != "channel")
+            {
+                return render_result(conn, false, "not supported");
+            }
+
+            if (!(channel_type_str == "volume" || channel_type_str == "playback_volume" || channel_type_str == "capture_volume"))
+            {
+                return render_result(conn, false, "type of volume set not supported, supported values are: volume, playback_volume, capture_volume");
+            }
+
+            if (control_str != "control")
+            {
+                return render_result(conn, false, "not supported");
+            }
+
+            if (!try_parse_number(device_volume_str, device_volume))
+            {
+                return render_result(conn, false, "cannot parse volume as number");
+            }
+
+            if (channel_type_str == "volume")
+            {
+                channel_type = audio_device_type::capture | audio_device_type::playback; 
+            }
+            else if (channel_type_str == "playback_volume")
+            {
+                channel_type = audio_device_type::playback; 
+            }
+            else if (channel_type_str == "capture_volume")
+            {
+                channel_type = audio_device_type::capture; 
+            }
+
+            bool result = try_set_audio_device_volume_percent(device.audio_device, control_name, channel_name, channel_type, device_volume);
+            
+            return render_result(conn, result, "");
+        }
+
+        return render_result(conn, false, "not supported");
+    }
+
+    std::vector<std::string> split_url(const std::string& url)
+    {
+        std::vector<std::string> segments;
+        std::string segment;
+        std::stringstream ss(url);
+
+        while (std::getline(ss, segment, '/'))
+        {
+            if (!segment.empty())
+            {
+                segments.push_back(segment);
+            }
+        }
+
+        return segments;
+    }
+
+    const struct args& args;
+};
+
+struct DevicesHttpHandler : public CivetHandler
+{
+    DevicesHttpHandler(const args& args, const search_result& result) : args(args), result(result) {}
+
+    bool handleGet(CivetServer *server, struct mg_connection *conn) override
+    {
+        print(!args.disable_colors, fg(fmt::color::gray), "HTTP server received GET request\n");
+
+        std::string uri = mg_get_request_info(conn)->local_uri;
+
+        // Only accept /devices and /devices/all
+        if (uri != "/devices" && uri != "/devices/all")
+        {
+            return false;
+        }
+
+        bool all = false;
+
+        if (uri == "/devices/all")
+        {
+            all = true;
+        }
+
+        try 
+        {
+            std::string response;
+            if (!all)
+            {
+                response = to_json(args, result);
+            }
+            else
+            {
+                response = new_search_to_json();
+            }
+            render_text(conn, response);
+        }
+        catch (std::exception&)
+        {
+            render_result(conn, false, "An exception has occured on the server.");
+        }
+
+        return true;
+    }
+
+    bool handlePost(CivetServer *server, struct mg_connection *conn) override
+    {
+        print(!args.disable_colors, fg(fmt::color::gray), "HTTP server received POST request\n");
+
+        std::string uri = mg_get_request_info(conn)->local_uri;
+
+        // Only accept /devices
+        if (uri != "/devices")
+        {
+            return false;
+        }
+
+        char buffer[1024];
+        std::string payload;
+        int readBytes = 0;
+        while ((readBytes = mg_read(conn, buffer, sizeof(buffer) - 1)) > 0)
+        {
+            payload.append(buffer, readBytes);
+        }
+
+        if (payload.size() <= 0)
+        {
+            render_result(conn, false, "Invalid JSON payload");
+            return false;
+        }
+
+        nlohmann::json j;
+
+        try
+        {
+            j = nlohmann::json::parse(payload);
+            
+            std::string response = process_devices_to_json(j);
+
+            render_text(conn, response);
+        }
+        catch (const nlohmann::json::parse_error& e)
+        {
+            render_result(conn, false, "Invalid JSON payload");
+            return false;
+        }
+
+        return true;
+    }
+
+    const struct args& args;
+    const search_result& result;
+};
+
+struct RootHandler : public CivetHandler
+{
+    bool handleGet(CivetServer *server, struct mg_connection *conn) override
+    {
+        return false;
+    }
+};
+
+int run_server(const args& args, const search_result& result)
+{
+    std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
+
+    if (!args.run_server)
+    {
+        return 0;
+    }
+
+    std::string server_port = std::to_string(args.server_port);
+
+    const char *options[] = {
+        "listening_ports", server_port.c_str(),
+        "num_threads", "4",
+        nullptr
+    };
+
+    CivetServer server(options);
+
+    // 
+    //  Example supported requests:
+    //
+    //    http://192.168.1.11:8082/devices
+    //    http://192.168.1.11:8082/devices/all
+    //    http://192.168.1.11:8082/device/hw:0,0
+    //    http://192.168.1.11:8082/device/hw:0,0/volume/50
+    //    http://192.168.1.11:8082/device/hw:0,0/playback_volume/50
+    //    http://192.168.1.11:8082/device/hw:0,0/capture_volume/50
+    //    http://192.168.1.11:8082/device/hw:0,0/channel/front_right/volume/50
+    //    http://192.168.1.11:8082/device/hw:0,0/channel/front_right/playback_volume/50
+    //    http://192.168.1.11:8082/device/hw:0,0/channel/front_right/capture_volume/50    
+    //    ws://192.168.1.11:8082
+    //
+
+    DeviceHttpHandler device_handler(args);
+    server.addHandler("/device", device_handler);
+
+    DevicesHttpHandler devices_handler(args, result);
+    server.addHandler("/devices", devices_handler);
+
+    RootHandler root_handler;
+    server.addHandler("/", root_handler);
+
+
+    if (!args.no_stdout && args.verbose)
+    {
+        print(!args.disable_colors, fmt::emphasis::bold, "HTTP and Web Socket server started on port {}\n", args.server_port);
+        print(!args.disable_colors, fg(fmt::color::light_yellow) | fmt::emphasis::italic, "Use Ctrl+C to stop server\n");
+    }
+
+    while (!interrupt_web_server)
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+    }
+
+    return 0;
 }
 
 // **************************************************************** //
@@ -1266,7 +1835,7 @@ std::vector<audio_device_unique_volume_set> adjust_volume(const args& args, sear
 bool test_volume_control(const args& args, const search_result& result);
 void print_adjust_volume_results(const args& args, const std::vector<audio_device_unique_volume_set>& audio_set_result);
 void update_devices_volume(search_result& result);
-void print(const args& args, const search_result& result, int volume_control_return_value, const std::vector<audio_device_unique_volume_set>& audio_set_result);
+std::string print(const args& args, const search_result& result, bool volume_control_return_value, const std::vector<audio_device_unique_volume_set>& audio_set_result);
 int process_devices(const args& args);
 void print_version();
 bool generate_direwolf_output_file(const args& args, const search_result& result);
@@ -1385,6 +1954,8 @@ void print_usage()
         "    --direwolf.agwport <port>         the AGW port in the direwolf configuration\n"
         "    --direwolf.kissport <port>        the KISS port in the direwolf configuration\n"
         "    --direwolf.callsign <port>        the callsign in the direwolf configuration, NOCALL if not specified\n"
+        "    --run-server                      if specified runs an HTTP server which web clients can use to query and control devices\n"
+        "    --server-port <port>              the HTTP server port number used for listening to inbound connections\n"
         "\n"
         "Return:\n"
         "    0 - success, audio devices or serial ports are found matching the search criteria\n"
@@ -1535,6 +2106,10 @@ void print_stdout(const args& args, const search_result& result)
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.bus_number);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "device");
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.device_number);
+                    print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "major");
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.major_number);
+                    print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "minor");
+                    print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.minor_number);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "product");
                     print(!args.disable_colors, fmt::emphasis::italic | fg(fmt::color::gray), "{}\n", p.second.product);
                     print(!args.disable_colors, fmt::emphasis::bold | fmt::emphasis::italic | fg(fmt::color::rosy_brown), "{:>20}: ", "idProduct");
@@ -1590,7 +2165,7 @@ void adjust_volume(const args& args, const audio_device_volume_info& volume, con
 
     updated_channel.volume_percent = volume_set.volume;
 
-    try_set_audio_device_volume(volume.audio_device, control, updated_channel);
+    try_set_audio_device_volume_percent(volume.audio_device, control, updated_channel);
 }
 
 std::vector<audio_device_unique_volume_set> adjust_volume(const args& args, search_result& result)
@@ -1676,7 +2251,7 @@ void print_adjust_volume_results(const args& args, const std::vector<audio_devic
         audio_device_channel updated_channel;   
         if (try_get_audio_device_channel(audio_set.volume.audio_device, audio_set.control.name, audio_set.channel.id, audio_set.channel.type, updated_channel))
         {
-            double percentage_error_double = ((updated_channel.volume_percent - audio_set.volume_set.volume) / (audio_set.volume_set.volume * 1.0)) * 100.0;
+            double percentage_error_double = updated_channel.volume_percent - audio_set.volume_set.volume;
             int percentage_error = (int)std::rint(percentage_error_double);
             std::string percentage_error_str = std::to_string(percentage_error);
             if (percentage_error > 0)
@@ -1719,7 +2294,7 @@ std::vector<audio_device_volume_probe> probe_volume_control(const args& args, co
                 {
                     channel.volume_percent = i;
 
-                    try_set_audio_device_volume(device.first.audio_device, control, channel);
+                    try_set_audio_device_volume_percent(device.first.audio_device, control, channel);
                     try_get_audio_device_channel(device.first.audio_device, control.name, channel.id, channel.type, channel);
 
                     audio_device_volume_probe probe;
@@ -1731,7 +2306,7 @@ std::vector<audio_device_volume_probe> probe_volume_control(const args& args, co
                 }
 
                 channel.volume_percent = initial_volume_value;
-                try_set_audio_device_volume(device.first.audio_device, control, channel);
+                try_set_audio_device_volume_percent(device.first.audio_device, control, channel);
             }
         }
     }
@@ -1739,14 +2314,14 @@ std::vector<audio_device_volume_probe> probe_volume_control(const args& args, co
     return probe_result;
 }
 
-void print(const args& args, const search_result& result, bool volume_control_return_value, const std::vector<audio_device_unique_volume_set>& audio_set_result)
+std::string print(const args& args, const search_result& result, bool volume_control_return_value, const std::vector<audio_device_unique_volume_set>& audio_set_result)
 {
     std::string config_file = std::filesystem::absolute(args.config_file).string();
 
     if (!args.no_stdout && !args.use_json && args.verbose && !args.ignore_config)
     {
         print(!args.disable_colors, fmt::emphasis::bold, "Using configuration file: ");
-        print(!args.disable_colors, fg(fmt::color::gray), "{}\n", config_file);
+        print(!args.disable_colors, fg(fmt::color::red), "{}\n", config_file);
     }
 
     std::string json_output = to_json(args, result, audio_set_result, volume_control_return_value);
@@ -1763,11 +2338,15 @@ void print(const args& args, const search_result& result, bool volume_control_re
     print_adjust_volume_results(args, audio_set_result);
 
     print_to_file(args, json_output);
+
+    return json_output;
 }
 
 int process_devices(const args& args)
 {
     search_result result = search(args);
+
+    sort(args, result);
 
     std::vector<audio_device_volume_probe> probe_results = probe_volume_control(args, result);
 
@@ -1775,11 +2354,11 @@ int process_devices(const args& args)
 
     bool volume_test_return_value = test_volume_control(args, result);
 
-    int return_value = volume_test_return_value ? 0 : 1;
-
     print(args, result, volume_test_return_value, adjust_volume_results);
 
     bool generate_direwolf_result = generate_direwolf_output_file(args, result);
+
+    int return_value = volume_test_return_value ? 0 : 1;
 
     if (volume_test_return_value)
     {
@@ -1788,11 +2367,13 @@ int process_devices(const args& args)
            return_value = 1;
         }
     }
-
+    
     if (!generate_direwolf_result)
     {
         return_value = 1;
     }
+
+    run_server(args, result);
 
     return return_value;
 }
