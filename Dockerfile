@@ -17,5 +17,7 @@ WORKDIR /find_devices
 
 RUN ./install_dependencies.sh
 
-RUN cmake .
+RUN mkdir -p build
+WORKDIR /find_devices/build
+RUN cmake ..
 RUN make -j 4
